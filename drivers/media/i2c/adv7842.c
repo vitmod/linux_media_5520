@@ -1119,7 +1119,7 @@ static void set_rgb_quantization_range(struct v4l2_subdev *sd)
 		/* Receiving DVI-D signal
 		 * ADV7842 selects RGB limited range regardless of
 		 * input format (CE/IT) in automatic mode */
-		if (state->timings.bt.standards & V4L2_DV_BT_STD_CEA861) {
+		if (state->timings.bt.flags & V4L2_DV_FL_IS_CE_VIDEO) {
 			/* RGB limited range (16-235) */
 			io_write_and_or(sd, 0x02, 0x0f, 0x00);
 		} else {
@@ -1867,20 +1867,26 @@ static int adv7842_s_routing(struct v4l2_subdev *sd,
 	return 0;
 }
 
-static int adv7842_enum_mbus_fmt(struct v4l2_subdev *sd, unsigned int index,
-				 u32 *code)
+static int adv7842_enum_mbus_code(struct v4l2_subdev *sd,
+		struct v4l2_subdev_pad_config *cfg,
+		struct v4l2_subdev_mbus_code_enum *code)
 {
-	if (index)
+	if (code->pad || code->index)
 		return -EINVAL;
 	/* Good enough for now */
-	*code = MEDIA_BUS_FMT_FIXED;
+	code->code = MEDIA_BUS_FMT_FIXED;
 	return 0;
 }
 
-static int adv7842_g_mbus_fmt(struct v4l2_subdev *sd,
-			      struct v4l2_mbus_framefmt *fmt)
+static int adv7842_fill_fmt(struct v4l2_subdev *sd,
+		struct v4l2_subdev_pad_config *cfg,
+		struct v4l2_subdev_format *format)
 {
+	struct v4l2_mbus_framefmt *fmt = &format->format;
 	struct adv7842_state *state = to_state(sd);
+
+	if (format->pad)
+		return -EINVAL;
 
 	fmt->width = state->timings.bt.width;
 	fmt->height = state->timings.bt.height;
@@ -1901,7 +1907,8 @@ static int adv7842_g_mbus_fmt(struct v4l2_subdev *sd,
 		return 0;
 	}
 
-	if (state->timings.bt.standards & V4L2_DV_BT_STD_CEA861) {
+	fmt->colorspace = V4L2_COLORSPACE_SRGB;
+	if (state->timings.bt.flags & V4L2_DV_FL_IS_CE_VIDEO) {
 		fmt->colorspace = (state->timings.bt.height <= 576) ?
 			V4L2_COLORSPACE_SMPTE170M : V4L2_COLORSPACE_REC709;
 	}
@@ -2808,10 +2815,6 @@ static const struct v4l2_subdev_video_ops adv7842_video_ops = {
 	.s_dv_timings = adv7842_s_dv_timings,
 	.g_dv_timings = adv7842_g_dv_timings,
 	.query_dv_timings = adv7842_query_dv_timings,
-	.enum_mbus_fmt = adv7842_enum_mbus_fmt,
-	.g_mbus_fmt = adv7842_g_mbus_fmt,
-	.try_mbus_fmt = adv7842_g_mbus_fmt,
-	.s_mbus_fmt = adv7842_g_mbus_fmt,
 };
 
 static const struct v4l2_subdev_pad_ops adv7842_pad_ops = {
@@ -2819,6 +2822,9 @@ static const struct v4l2_subdev_pad_ops adv7842_pad_ops = {
 	.set_edid = adv7842_set_edid,
 	.enum_dv_timings = adv7842_enum_dv_timings,
 	.dv_timings_cap = adv7842_dv_timings_cap,
+	.enum_mbus_code = adv7842_enum_mbus_code,
+	.get_fmt = adv7842_fill_fmt,
+	.set_fmt = adv7842_fill_fmt,
 };
 
 static const struct v4l2_subdev_ops adv7842_ops = {

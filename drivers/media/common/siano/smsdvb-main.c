@@ -611,9 +611,9 @@ static int smsdvb_onresponse(void *context, struct smscore_buffer_t *cb)
 
 static void smsdvb_media_device_unregister(struct smsdvb_client_t *client)
 {
+#ifdef CONFIG_MEDIA_CONTROLLER_DVB
 	struct smscore_device_t *coredev = client->coredev;
 
-#ifdef CONFIG_MEDIA_CONTROLLER_DVB
 	if (!coredev->media_dev)
 		return;
 	media_device_unregister(coredev->media_dev);
@@ -1104,9 +1104,7 @@ static int smsdvb_hotplug(struct smscore_device_t *coredev,
 		pr_err("dvb_register_adapter() failed %d\n", rc);
 		goto adapter_error;
 	}
-#ifdef CONFIG_MEDIA_CONTROLLER_DVB
-	client->adapter.mdev = coredev->media_dev;
-#endif
+	dvb_register_media_controller(&client->adapter, coredev->media_dev);
 
 	/* init dvb demux */
 	client->demux.dmx.capabilities = DMX_TS_FILTERING;
@@ -1185,7 +1183,7 @@ static int smsdvb_hotplug(struct smscore_device_t *coredev,
 	if (smsdvb_debugfs_create(client) < 0)
 		pr_info("failed to create debugfs node\n");
 
-	dvb_create_media_graph(coredev->media_dev);
+	dvb_create_media_graph(&client->adapter);
 
 	pr_info("DVB interface registered.\n");
 	return 0;

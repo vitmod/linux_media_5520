@@ -510,9 +510,6 @@ static int stk7700ph_tuner_attach(struct dvb_usb_adapter *adap)
 
 static u8 rc_request[] = { REQUEST_POLL_RC, 0 };
 
-/* Number of keypresses to ignore before start repeating */
-#define RC_REPEAT_DELAY 6
-
 /*
  * This function is used only when firmware is < 1.20 version. Newer
  * firmwares use bulk mode, with functions implemented at dib0700_core,
@@ -864,22 +861,22 @@ static int dib7770_set_param_override(struct dvb_frontend *fe)
 	struct dvb_usb_adapter *adap = fe->dvb->priv;
 	struct dib0700_adapter_state *state = adap->priv;
 
-	 u16 offset;
-	 u8 band = BAND_OF_FREQUENCY(p->frequency/1000);
-	 switch (band) {
-	 case BAND_VHF:
-		  state->dib7000p_ops.set_gpio(fe, 0, 0, 1);
-		  offset = 850;
-		  break;
-	 case BAND_UHF:
-	 default:
-		  state->dib7000p_ops.set_gpio(fe, 0, 0, 0);
-		  offset = 250;
-		  break;
-	 }
-	 deb_info("WBD for DiB7000P: %d\n", offset + dib0070_wbd_offset(fe));
-	 state->dib7000p_ops.set_wbd_ref(fe, offset + dib0070_wbd_offset(fe));
-	 return state->set_param_save(fe);
+	u16 offset;
+	u8 band = BAND_OF_FREQUENCY(p->frequency/1000);
+	switch (band) {
+	case BAND_VHF:
+		state->dib7000p_ops.set_gpio(fe, 0, 0, 1);
+		offset = 850;
+		break;
+	case BAND_UHF:
+	default:
+		state->dib7000p_ops.set_gpio(fe, 0, 0, 0);
+		offset = 250;
+		break;
+	}
+	deb_info("WBD for DiB7000P: %d\n", offset + dib0070_wbd_offset(fe));
+	state->dib7000p_ops.set_wbd_ref(fe, offset + dib0070_wbd_offset(fe));
+	return state->set_param_save(fe);
 }
 
 static int dib7770p_tuner_attach(struct dvb_usb_adapter *adap)
