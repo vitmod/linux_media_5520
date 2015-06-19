@@ -9541,7 +9541,7 @@ ctrl_get_qam_sig_quality(struct drx_demod_instance *demod)
 	/* ----------------------------------------- */
 	/* Pre Viterbi Symbol Error Rate Calculation */
 	/* ----------------------------------------- */
-	/* pre viterbi SER is good if it is bellow 0.025 */
+	/* pre viterbi SER is good if it is below 0.025 */
 
 	/* get the register value */
 	/*   no of quadrature symbol errors */
@@ -11946,7 +11946,7 @@ static int drx39xxj_set_powerstate(struct dvb_frontend *fe, int enable)
 	return 0;
 }
 
-static int drx39xxj_read_status(struct dvb_frontend *fe, fe_status_t *status)
+static int drx39xxj_read_status(struct dvb_frontend *fe, enum fe_status *status)
 {
 	struct drx39xxj_state *state = fe->demodulator_priv;
 	struct drx_demod_instance *demod = state->demod;

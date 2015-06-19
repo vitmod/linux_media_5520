@@ -220,6 +220,8 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 	case V4L2_PIX_FMT_ARGB32:
 	case V4L2_PIX_FMT_ABGR32:
 	case V4L2_PIX_FMT_GREY:
+	case V4L2_PIX_FMT_Y16:
+	case V4L2_PIX_FMT_Y16_BE:
 		tpg->is_yuv = false;
 		break;
 	case V4L2_PIX_FMT_YUV444:
@@ -292,6 +294,7 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 	}
 
 	switch (fourcc) {
+	case V4L2_PIX_FMT_GREY:
 	case V4L2_PIX_FMT_RGB332:
 		tpg->twopixelsize[0] = 2;
 		break;
@@ -313,6 +316,8 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 	case V4L2_PIX_FMT_YUV444:
 	case V4L2_PIX_FMT_YUV555:
 	case V4L2_PIX_FMT_YUV565:
+	case V4L2_PIX_FMT_Y16:
+	case V4L2_PIX_FMT_Y16_BE:
 		tpg->twopixelsize[0] = 2 * 2;
 		break;
 	case V4L2_PIX_FMT_RGB24:
@@ -328,9 +333,6 @@ bool tpg_s_fourcc(struct tpg_data *tpg, u32 fourcc)
 	case V4L2_PIX_FMT_ABGR32:
 	case V4L2_PIX_FMT_YUV32:
 		tpg->twopixelsize[0] = 2 * 4;
-		break;
-	case V4L2_PIX_FMT_GREY:
-		tpg->twopixelsize[0] = 2;
 		break;
 	case V4L2_PIX_FMT_NV12:
 	case V4L2_PIX_FMT_NV21:
@@ -704,15 +706,17 @@ static void precalculate_color(struct tpg_data *tpg, int k)
 	}
 
 	if (tpg->pattern == TPG_PAT_CSC_COLORBAR && col <= TPG_COLOR_CSC_BLACK) {
-		r = tpg_csc_colors[tpg->colorspace][col].r;
-		g = tpg_csc_colors[tpg->colorspace][col].g;
-		b = tpg_csc_colors[tpg->colorspace][col].b;
+		r = tpg_csc_colors[tpg->colorspace][tpg->real_xfer_func][col].r;
+		g = tpg_csc_colors[tpg->colorspace][tpg->real_xfer_func][col].g;
+		b = tpg_csc_colors[tpg->colorspace][tpg->real_xfer_func][col].b;
 	} else {
 		r <<= 4;
 		g <<= 4;
 		b <<= 4;
 	}
-	if (tpg->qual == TPG_QUAL_GRAY || tpg->fourcc == V4L2_PIX_FMT_GREY) {
+	if (tpg->qual == TPG_QUAL_GRAY || tpg->fourcc == V4L2_PIX_FMT_GREY ||
+	    tpg->fourcc == V4L2_PIX_FMT_Y16 ||
+	    tpg->fourcc == V4L2_PIX_FMT_Y16_BE) {
 		/* Rec. 709 Luma function */
 		/* (0.2126, 0.7152, 0.0722) * (255 * 256) */
 		r = g = b = (13879 * r + 46688 * g + 4713 * b) >> 16;
@@ -894,6 +898,21 @@ static void gen_twopix(struct tpg_data *tpg,
 	switch (tpg->fourcc) {
 	case V4L2_PIX_FMT_GREY:
 		buf[0][offset] = r_y;
+		break;
+	case V4L2_PIX_FMT_Y16:
+		/*
+		 * Ideally both bytes should be set to r_y, but then you won't
+		 * be able to detect endian problems. So keep it 0 except for
+		 * the corner case where r_y is 0xff so white really will be
+		 * white (0xffff).
+		 */
+		buf[0][offset] = r_y == 0xff ? r_y : 0;
+		buf[0][offset+1] = r_y;
+		break;
+	case V4L2_PIX_FMT_Y16_BE:
+		/* See comment for V4L2_PIX_FMT_Y16 above */
+		buf[0][offset] = r_y;
+		buf[0][offset+1] = r_y == 0xff ? r_y : 0;
 		break;
 	case V4L2_PIX_FMT_YUV422P:
 	case V4L2_PIX_FMT_YUV420:
@@ -1450,42 +1469,10 @@ static void tpg_precalculate_line(struct tpg_data *tpg)
 /* need this to do rgb24 rendering */
 typedef struct { u16 __; u8 _; } __packed x24;
 
-void tpg_gen_text(const struct tpg_data *tpg, u8 *basep[TPG_MAX_PLANES][2],
-		  int y, int x, char *text)
-{
-	int line;
-	unsigned step = V4L2_FIELD_HAS_T_OR_B(tpg->field) ? 2 : 1;
-	unsigned div = step;
-	unsigned first = 0;
-	unsigned len = strlen(text);
-	unsigned p;
-
-	if (font8x16 == NULL || basep == NULL)
-		return;
-
-	/* Checks if it is possible to show string */
-	if (y + 16 >= tpg->compose.height || x + 8 >= tpg->compose.width)
-		return;
-
-	if (len > (tpg->compose.width - x) / 8)
-		len = (tpg->compose.width - x) / 8;
-	if (tpg->vflip)
-		y = tpg->compose.height - y - 16;
-	if (tpg->hflip)
-		x = tpg->compose.width - x - 8;
-	y += tpg->compose.top;
-	x += tpg->compose.left;
-	if (tpg->field == V4L2_FIELD_BOTTOM)
-		first = 1;
-	else if (tpg->field == V4L2_FIELD_SEQ_TB || tpg->field == V4L2_FIELD_SEQ_BT)
-		div = 2;
-
-	for (p = 0; p < tpg->planes; p++) {
-		unsigned vdiv = tpg->vdownsampling[p];
-		unsigned hdiv = tpg->hdownsampling[p];
-
-		/* Print text */
 #define PRINTSTR(PIXTYPE) do {	\
+	unsigned vdiv = tpg->vdownsampling[p]; \
+	unsigned hdiv = tpg->hdownsampling[p]; \
+	int line;	\
 	PIXTYPE fg;	\
 	PIXTYPE bg;	\
 	memcpy(&fg, tpg->textfg[p], sizeof(PIXTYPE));	\
@@ -1536,15 +1523,82 @@ void tpg_gen_text(const struct tpg_data *tpg, u8 *basep[TPG_MAX_PLANES][2],
 	}	\
 } while (0)
 
+static noinline void tpg_print_str_2(const struct tpg_data *tpg, u8 *basep[TPG_MAX_PLANES][2],
+			unsigned p, unsigned first, unsigned div, unsigned step,
+			int y, int x, char *text, unsigned len)
+{
+	PRINTSTR(u8);
+}
+
+static noinline void tpg_print_str_4(const struct tpg_data *tpg, u8 *basep[TPG_MAX_PLANES][2],
+			unsigned p, unsigned first, unsigned div, unsigned step,
+			int y, int x, char *text, unsigned len)
+{
+	PRINTSTR(u16);
+}
+
+static noinline void tpg_print_str_6(const struct tpg_data *tpg, u8 *basep[TPG_MAX_PLANES][2],
+			unsigned p, unsigned first, unsigned div, unsigned step,
+			int y, int x, char *text, unsigned len)
+{
+	PRINTSTR(x24);
+}
+
+static noinline void tpg_print_str_8(const struct tpg_data *tpg, u8 *basep[TPG_MAX_PLANES][2],
+			unsigned p, unsigned first, unsigned div, unsigned step,
+			int y, int x, char *text, unsigned len)
+{
+	PRINTSTR(u32);
+}
+
+void tpg_gen_text(const struct tpg_data *tpg, u8 *basep[TPG_MAX_PLANES][2],
+		  int y, int x, char *text)
+{
+	unsigned step = V4L2_FIELD_HAS_T_OR_B(tpg->field) ? 2 : 1;
+	unsigned div = step;
+	unsigned first = 0;
+	unsigned len = strlen(text);
+	unsigned p;
+
+	if (font8x16 == NULL || basep == NULL)
+		return;
+
+	/* Checks if it is possible to show string */
+	if (y + 16 >= tpg->compose.height || x + 8 >= tpg->compose.width)
+		return;
+
+	if (len > (tpg->compose.width - x) / 8)
+		len = (tpg->compose.width - x) / 8;
+	if (tpg->vflip)
+		y = tpg->compose.height - y - 16;
+	if (tpg->hflip)
+		x = tpg->compose.width - x - 8;
+	y += tpg->compose.top;
+	x += tpg->compose.left;
+	if (tpg->field == V4L2_FIELD_BOTTOM)
+		first = 1;
+	else if (tpg->field == V4L2_FIELD_SEQ_TB || tpg->field == V4L2_FIELD_SEQ_BT)
+		div = 2;
+
+	for (p = 0; p < tpg->planes; p++) {
+		/* Print text */
 		switch (tpg->twopixelsize[p]) {
 		case 2:
-			PRINTSTR(u8); break;
+			tpg_print_str_2(tpg, basep, p, first, div, step, y, x,
+					text, len);
+			break;
 		case 4:
-			PRINTSTR(u16); break;
+			tpg_print_str_4(tpg, basep, p, first, div, step, y, x,
+					text, len);
+			break;
 		case 6:
-			PRINTSTR(x24); break;
+			tpg_print_str_6(tpg, basep, p, first, div, step, y, x,
+					text, len);
+			break;
 		case 8:
-			PRINTSTR(u32); break;
+			tpg_print_str_8(tpg, basep, p, first, div, step, y, x,
+					text, len);
+			break;
 		}
 	}
 }
@@ -1638,50 +1692,23 @@ static void tpg_recalc(struct tpg_data *tpg)
 	if (tpg->recalc_colors) {
 		tpg->recalc_colors = false;
 		tpg->recalc_lines = true;
+		tpg->real_xfer_func = tpg->xfer_func;
 		tpg->real_ycbcr_enc = tpg->ycbcr_enc;
 		tpg->real_quantization = tpg->quantization;
-		if (tpg->ycbcr_enc == V4L2_YCBCR_ENC_DEFAULT) {
-			switch (tpg->colorspace) {
-			case V4L2_COLORSPACE_REC709:
-				tpg->real_ycbcr_enc = V4L2_YCBCR_ENC_709;
-				break;
-			case V4L2_COLORSPACE_SRGB:
-				tpg->real_ycbcr_enc = V4L2_YCBCR_ENC_SYCC;
-				break;
-			case V4L2_COLORSPACE_BT2020:
-				tpg->real_ycbcr_enc = V4L2_YCBCR_ENC_BT2020;
-				break;
-			case V4L2_COLORSPACE_SMPTE240M:
-				tpg->real_ycbcr_enc = V4L2_YCBCR_ENC_SMPTE240M;
-				break;
-			case V4L2_COLORSPACE_SMPTE170M:
-			case V4L2_COLORSPACE_470_SYSTEM_M:
-			case V4L2_COLORSPACE_470_SYSTEM_BG:
-			case V4L2_COLORSPACE_ADOBERGB:
-			default:
-				tpg->real_ycbcr_enc = V4L2_YCBCR_ENC_601;
-				break;
-			}
-		}
-		if (tpg->quantization == V4L2_QUANTIZATION_DEFAULT) {
-			tpg->real_quantization = V4L2_QUANTIZATION_FULL_RANGE;
-			if (tpg->is_yuv) {
-				switch (tpg->real_ycbcr_enc) {
-				case V4L2_YCBCR_ENC_SYCC:
-				case V4L2_YCBCR_ENC_XV601:
-				case V4L2_YCBCR_ENC_XV709:
-					break;
-				default:
-					tpg->real_quantization =
-						V4L2_QUANTIZATION_LIM_RANGE;
-					break;
-				}
-			} else if (tpg->colorspace == V4L2_COLORSPACE_BT2020) {
-				/* R'G'B' BT.2020 is limited range */
-				tpg->real_quantization =
-					V4L2_QUANTIZATION_LIM_RANGE;
-			}
-		}
+
+		if (tpg->xfer_func == V4L2_XFER_FUNC_DEFAULT)
+			tpg->real_xfer_func =
+				V4L2_MAP_XFER_FUNC_DEFAULT(tpg->colorspace);
+
+		if (tpg->ycbcr_enc == V4L2_YCBCR_ENC_DEFAULT)
+			tpg->real_ycbcr_enc =
+				V4L2_MAP_YCBCR_ENC_DEFAULT(tpg->colorspace);
+
+		if (tpg->quantization == V4L2_QUANTIZATION_DEFAULT)
+			tpg->real_quantization =
+				V4L2_MAP_QUANTIZATION_DEFAULT(!tpg->is_yuv,
+					tpg->colorspace, tpg->real_ycbcr_enc);
+
 		tpg_precalculate_colors(tpg);
 	}
 	if (tpg->recalc_square_border) {
@@ -1736,6 +1763,7 @@ void tpg_log_status(struct tpg_data *tpg)
 	pr_info("tpg compose: %ux%u@%dx%d\n", tpg->compose.width, tpg->compose.height,
 			tpg->compose.left, tpg->compose.top);
 	pr_info("tpg colorspace: %d\n", tpg->colorspace);
+	pr_info("tpg transfer function: %d/%d\n", tpg->xfer_func, tpg->real_xfer_func);
 	pr_info("tpg Y'CbCr encoding: %d/%d\n", tpg->ycbcr_enc, tpg->real_ycbcr_enc);
 	pr_info("tpg quantization: %d/%d\n", tpg->quantization, tpg->real_quantization);
 	pr_info("tpg RGB range: %d/%d\n", tpg->rgb_range, tpg->real_rgb_range);

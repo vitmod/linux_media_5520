@@ -147,8 +147,9 @@ static void *vb2_dma_sg_alloc(void *alloc_ctx, unsigned long size,
 	 * No need to sync to the device, this will happen later when the
 	 * prepare() memop is called.
 	 */
-	if (dma_map_sg_attrs(buf->dev, sgt->sgl, sgt->nents,
-			     buf->dma_dir, &attrs) == 0)
+	sgt->nents = dma_map_sg_attrs(buf->dev, sgt->sgl, sgt->orig_nents,
+				      buf->dma_dir, &attrs);
+	if (!sgt->nents)
 		goto fail_map;
 
 	buf->handler.refcount = &buf->refcount;
@@ -187,7 +188,7 @@ static void vb2_dma_sg_put(void *buf_priv)
 		dma_set_attr(DMA_ATTR_SKIP_CPU_SYNC, &attrs);
 		dprintk(1, "%s: Freeing buffer of %d pages\n", __func__,
 			buf->num_pages);
-		dma_unmap_sg_attrs(buf->dev, sgt->sgl, sgt->nents,
+		dma_unmap_sg_attrs(buf->dev, sgt->sgl, sgt->orig_nents,
 				   buf->dma_dir, &attrs);
 		if (buf->vaddr)
 			vm_unmap_ram(buf->vaddr, buf->num_pages);
@@ -263,7 +264,6 @@ static void *vb2_dma_sg_get_userptr(void *alloc_ctx, unsigned long vaddr,
 	if (!buf->pages)
 		goto userptr_fail_alloc_pages;
 
-	down_read(&current->mm->mmap_sem);
 	vma = find_vma(current->mm, vaddr);
 	if (!vma) {
 		dprintk(1, "no vma for address %lu\n", vaddr);
@@ -302,7 +302,6 @@ static void *vb2_dma_sg_get_userptr(void *alloc_ctx, unsigned long vaddr,
 					     1, /* force */
 					     buf->pages,
 					     NULL);
-	up_read(&current->mm->mmap_sem);
 
 	if (num_pages_from_user != buf->num_pages)
 		goto userptr_fail_get_user_pages;
@@ -316,9 +315,11 @@ static void *vb2_dma_sg_get_userptr(void *alloc_ctx, unsigned long vaddr,
 	 * No need to sync to the device, this will happen later when the
 	 * prepare() memop is called.
 	 */
-	if (dma_map_sg_attrs(buf->dev, sgt->sgl, sgt->nents,
-			     buf->dma_dir, &attrs) == 0)
+	sgt->nents = dma_map_sg_attrs(buf->dev, sgt->sgl, sgt->orig_nents,
+				      buf->dma_dir, &attrs);
+	if (!sgt->nents)
 		goto userptr_fail_map;
+
 	return buf;
 
 userptr_fail_map:
@@ -330,10 +331,8 @@ userptr_fail_get_user_pages:
 	if (!vma_is_io(buf->vma))
 		while (--num_pages_from_user >= 0)
 			put_page(buf->pages[num_pages_from_user]);
-	down_read(&current->mm->mmap_sem);
 	vb2_put_vma(buf->vma);
 userptr_fail_find_vma:
-	up_read(&current->mm->mmap_sem);
 	kfree(buf->pages);
 userptr_fail_alloc_pages:
 	kfree(buf);
@@ -355,7 +354,8 @@ static void vb2_dma_sg_put_userptr(void *buf_priv)
 
 	dprintk(1, "%s: Releasing userspace buffer of %d pages\n",
 	       __func__, buf->num_pages);
-	dma_unmap_sg_attrs(buf->dev, sgt->sgl, sgt->nents, buf->dma_dir, &attrs);
+	dma_unmap_sg_attrs(buf->dev, sgt->sgl, sgt->orig_nents, buf->dma_dir,
+			   &attrs);
 	if (buf->vaddr)
 		vm_unmap_ram(buf->vaddr, buf->num_pages);
 	sg_free_table(buf->dma_sgt);
@@ -366,9 +366,7 @@ static void vb2_dma_sg_put_userptr(void *buf_priv)
 			put_page(buf->pages[i]);
 	}
 	kfree(buf->pages);
-	down_read(&current->mm->mmap_sem);
 	vb2_put_vma(buf->vma);
-	up_read(&current->mm->mmap_sem);
 	kfree(buf);
 }
 
@@ -508,7 +506,6 @@ static struct sg_table *vb2_dma_sg_dmabuf_ops_map(
 	/* stealing dmabuf mutex to serialize map/unmap operations */
 	struct mutex *lock = &db_attach->dmabuf->lock;
 	struct sg_table *sgt;
-	int ret;
 
 	mutex_lock(lock);
 
@@ -527,8 +524,9 @@ static struct sg_table *vb2_dma_sg_dmabuf_ops_map(
 	}
 
 	/* mapping to the client with new direction */
-	ret = dma_map_sg(db_attach->dev, sgt->sgl, sgt->orig_nents, dma_dir);
-	if (ret <= 0) {
+	sgt->nents = dma_map_sg(db_attach->dev, sgt->sgl, sgt->orig_nents,
+				dma_dir);
+	if (!sgt->nents) {
 		pr_err("failed to map scatterlist\n");
 		mutex_unlock(lock);
 		return ERR_PTR(-EIO);

@@ -501,6 +501,13 @@ static unsigned vivid_colorspace_cap(struct vivid_dev *dev)
 	return dev->colorspace_out;
 }
 
+static unsigned vivid_xfer_func_cap(struct vivid_dev *dev)
+{
+	if (!dev->loop_video || vivid_is_webcam(dev) || vivid_is_tv_cap(dev))
+		return tpg_g_xfer_func(&dev->tpg);
+	return dev->xfer_func_out;
+}
+
 static unsigned vivid_ycbcr_enc_cap(struct vivid_dev *dev)
 {
 	if (!dev->loop_video || vivid_is_webcam(dev) || vivid_is_tv_cap(dev))
@@ -527,6 +534,7 @@ int vivid_g_fmt_vid_cap(struct file *file, void *priv,
 	mp->field        = dev->field_cap;
 	mp->pixelformat  = dev->fmt_cap->fourcc;
 	mp->colorspace   = vivid_colorspace_cap(dev);
+	mp->xfer_func    = vivid_xfer_func_cap(dev);
 	mp->ycbcr_enc    = vivid_ycbcr_enc_cap(dev);
 	mp->quantization = vivid_quantization_cap(dev);
 	mp->num_planes = dev->fmt_cap->buffers;
@@ -616,6 +624,7 @@ int vivid_try_fmt_vid_cap(struct file *file, void *priv,
 	}
 	mp->colorspace = vivid_colorspace_cap(dev);
 	mp->ycbcr_enc = vivid_ycbcr_enc_cap(dev);
+	mp->xfer_func = vivid_xfer_func_cap(dev);
 	mp->quantization = vivid_quantization_cap(dev);
 	memset(mp->reserved, 0, sizeof(mp->reserved));
 	return 0;
@@ -1619,7 +1628,7 @@ static bool valid_cvt_gtf_timings(struct v4l2_dv_timings *timings)
 
 	if (bt->standards == 0 || (bt->standards & V4L2_DV_BT_STD_CVT)) {
 		if (v4l2_detect_cvt(total_v_lines, h_freq, bt->vsync,
-				    bt->polarities, timings))
+				    bt->polarities, bt->interlaced, timings))
 			return true;
 	}
 
@@ -1630,7 +1639,8 @@ static bool valid_cvt_gtf_timings(struct v4l2_dv_timings *timings)
 				  &aspect_ratio.numerator,
 				  &aspect_ratio.denominator);
 		if (v4l2_detect_gtf(total_v_lines, h_freq, bt->vsync,
-				    bt->polarities, aspect_ratio, timings))
+				    bt->polarities, bt->interlaced,
+				    aspect_ratio, timings))
 			return true;
 	}
 	return false;
