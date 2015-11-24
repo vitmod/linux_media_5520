@@ -30,7 +30,7 @@
 #include <media/tveeprom.h>
 #include <media/v4l2-common.h>
 
-#include <media/cx25840.h>
+#include <media/drv-intf/cx25840.h>
 #include "dvb-usb-ids.h"
 #include "xc5000.h"
 #include "tda18271.h"
@@ -358,7 +358,7 @@ struct cx231xx_board cx231xx_boards[] = {
 		.agc_analog_digital_select_gpio = 0x0c,
 		.gpio_pin_status_mask = 0x4001000,
 		.tuner_i2c_master = I2C_1_MUX_1,
-		.demod_i2c_master = I2C_2,
+		.demod_i2c_master = I2C_1_MUX_1,
 		.has_dvb = 1,
 		.adap_cnt = 1,
 		.demod_addr = 0x0e,
@@ -723,7 +723,7 @@ struct cx231xx_board cx231xx_boards[] = {
 		.agc_analog_digital_select_gpio = 0x0c,
 		.gpio_pin_status_mask = 0x4001000,
 		.tuner_i2c_master = I2C_1_MUX_3,
-		.demod_i2c_master = I2C_2,
+		.demod_i2c_master = I2C_1_MUX_3,
 		.has_dvb = 1,
 		.demod_addr = 0x0e,
 		.norm = V4L2_STD_PAL,
@@ -762,7 +762,7 @@ struct cx231xx_board cx231xx_boards[] = {
 		.agc_analog_digital_select_gpio = 0x0c,
 		.gpio_pin_status_mask = 0x4001000,
 		.tuner_i2c_master = I2C_1_MUX_3,
-		.demod_i2c_master = I2C_2,
+		.demod_i2c_master = I2C_1_MUX_3,
 		.has_dvb = 1,
 		.demod_addr = 0x0e,
 		.norm = V4L2_STD_PAL,
@@ -801,7 +801,7 @@ struct cx231xx_board cx231xx_boards[] = {
 		.agc_analog_digital_select_gpio = 0x0c,
 		.gpio_pin_status_mask = 0x4001000,
 		.tuner_i2c_master = I2C_1_MUX_3,
-		.demod_i2c_master = I2C_2,
+		.demod_i2c_master = I2C_1_MUX_3,
 		.has_dvb = 1,
 		.adap_cnt = 1,
 		.demod_addr = 0x0e,
@@ -813,6 +813,32 @@ struct cx231xx_board cx231xx_boards[] = {
 			.amux = CX231XX_AMUX_VIDEO,
 			.gpio = NULL,
 		}, {
+			.type = CX231XX_VMUX_COMPOSITE1,
+			.vmux = CX231XX_VIN_2_1,
+			.amux = CX231XX_AMUX_LINE_IN,
+			.gpio = NULL,
+		}, {
+			.type = CX231XX_VMUX_SVIDEO,
+			.vmux = CX231XX_VIN_1_1 |
+				(CX231XX_VIN_1_2 << 8) |
+				CX25840_SVIDEO_ON,
+			.amux = CX231XX_AMUX_LINE_IN,
+			.gpio = NULL,
+		} },
+	},
+	[CX231XX_BOARD_TERRATEC_GRABBY] = {
+		.name = "Terratec Grabby",
+		.tuner_type = TUNER_ABSENT,
+		.decoder = CX231XX_AVDECODER,
+		.output_mode = OUT_MODE_VIP11,
+		.demod_xfer_mode = 0,
+		.ctl_pin_status_mask = 0xFFFFFFC4,
+		.agc_analog_digital_select_gpio = 0x0c,
+		.gpio_pin_status_mask = 0x4001000,
+		.norm = V4L2_STD_PAL,
+		.no_alt_vanc = 1,
+		.external_av = 1,
+		.input = {{
 			.type = CX231XX_VMUX_COMPOSITE1,
 			.vmux = CX231XX_VIN_2_1,
 			.amux = CX231XX_AMUX_LINE_IN,
@@ -902,8 +928,6 @@ struct cx231xx_board cx231xx_boards[] = {
 			.gpio = NULL,
 		} },
 	},
-
-
 };
 const unsigned int cx231xx_bcount = ARRAY_SIZE(cx231xx_boards);
 
@@ -969,11 +993,12 @@ struct usb_device_id cx231xx_id_table[] = {
 	 .driver_info = CX231XX_BOARD_ELGATO_VIDEO_CAPTURE_V2},
 	{USB_DEVICE(0x1f4d, 0x0102),
 	 .driver_info = CX231XX_BOARD_OTG102},
+	{USB_DEVICE(USB_VID_TERRATEC, 0x00a6),
+	 .driver_info = CX231XX_BOARD_TERRATEC_GRABBY},
 	{USB_DEVICE(0x734c, 0x5280),
 	 .driver_info = CX231XX_BOARD_TBS_5280},
 	{USB_DEVICE(0x734c, 0x5281),
 	 .driver_info = CX231XX_BOARD_TBS_5281},
-
 	{},
 };
 
@@ -1186,17 +1211,25 @@ void cx231xx_card_setup(struct cx231xx *dev)
 	case CX231XX_BOARD_HAUPPAUGE_930C_HD_1114xx:
 	case CX231XX_BOARD_HAUPPAUGE_955Q:
 		{
-			struct tveeprom tvee;
-			static u8 eeprom[256];
-			struct i2c_client client;
+			struct eeprom {
+				struct tveeprom tvee;
+				u8 eeprom[256];
+				struct i2c_client client;
+			};
+			struct eeprom *e = kzalloc(sizeof(*e), GFP_KERNEL);
 
-			memset(&client, 0, sizeof(client));
-			client.adapter = cx231xx_get_i2c_adap(dev, I2C_1_MUX_1);
-			client.addr = 0xa0 >> 1;
+			if (e == NULL) {
+				dev_err(dev->dev,
+					"failed to allocate memory to read eeprom\n");
+				break;
+			}
+			e->client.adapter = cx231xx_get_i2c_adap(dev, I2C_1_MUX_1);
+			e->client.addr = 0xa0 >> 1;
 
-			read_eeprom(dev, &client, eeprom, sizeof(eeprom));
-			tveeprom_hauppauge_analog(&client,
-						&tvee, eeprom + 0xc0);
+			read_eeprom(dev, &e->client, e->eeprom, sizeof(e->eeprom));
+			tveeprom_hauppauge_analog(&e->client,
+						&e->tvee, e->eeprom + 0xc0);
+			kfree(e);
 			break;
 		}
 	}

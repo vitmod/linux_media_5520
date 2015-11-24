@@ -45,7 +45,7 @@
 #include <linux/delay.h>
 #include <linux/math64.h>
 #include <media/v4l2-common.h>
-#include <media/cx25840.h>
+#include <media/drv-intf/cx25840.h>
 
 #include "cx25840-core.h"
 
@@ -5348,7 +5348,6 @@ MODULE_DEVICE_TABLE(i2c, cx25840_id);
 
 static struct i2c_driver cx25840_driver = {
 	.driver = {
-		.owner	= THIS_MODULE,
 		.name	= "cx25840",
 	},
 	.probe		= cx25840_probe,

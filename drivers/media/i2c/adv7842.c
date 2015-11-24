@@ -40,9 +40,10 @@
 #include <linux/v4l2-dv-timings.h>
 #include <linux/hdmi.h>
 #include <media/v4l2-device.h>
+#include <media/v4l2-event.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-dv-timings.h>
-#include <media/adv7842.h>
+#include <media/i2c/adv7842.h>
 
 static int debug;
 module_param(debug, int, 0644);
@@ -1442,15 +1443,15 @@ static int stdi2dv_timings(struct v4l2_subdev *sd,
 		}
 	}
 
-	if (v4l2_detect_cvt(stdi->lcf + 1, hfreq, stdi->lcvs,
+	if (v4l2_detect_cvt(stdi->lcf + 1, hfreq, stdi->lcvs, 0,
 			(stdi->hs_pol == '+' ? V4L2_DV_HSYNC_POS_POL : 0) |
 			(stdi->vs_pol == '+' ? V4L2_DV_VSYNC_POS_POL : 0),
-			    timings))
+			false, timings))
 		return 0;
 	if (v4l2_detect_gtf(stdi->lcf + 1, hfreq, stdi->lcvs,
 			(stdi->hs_pol == '+' ? V4L2_DV_HSYNC_POS_POL : 0) |
 			(stdi->vs_pol == '+' ? V4L2_DV_VSYNC_POS_POL : 0),
-			    state->aspect_ratio, timings))
+			false, state->aspect_ratio, timings))
 		return 0;
 
 	v4l2_dbg(2, debug, sd,
@@ -1556,7 +1557,7 @@ static int adv7842_query_dv_timings(struct v4l2_subdev *sd,
 			V4L2_DV_BT_STD_GTF | V4L2_DV_BT_STD_CVT;
 
 	if (is_digital_input(sd)) {
-		uint32_t freq;
+		u32 freq;
 
 		timings->type = V4L2_DV_BT_656_1120;
 
@@ -1980,8 +1981,7 @@ static int adv7842_s_routing(struct v4l2_subdev *sd,
 	select_input(sd, state->vid_std_select);
 	enable_input(sd);
 
-	v4l2_subdev_notify(sd, V4L2_DEVICE_NOTIFY_EVENT,
-			   (void *)&adv7842_ev_fmt);
+	v4l2_subdev_notify_event(sd, &adv7842_ev_fmt);
 
 	return 0;
 }
@@ -2214,8 +2214,7 @@ static int adv7842_isr(struct v4l2_subdev *sd, u32 status, bool *handled)
 			 "%s: fmt_change_cp = 0x%x, fmt_change_digital = 0x%x, fmt_change_sdp = 0x%x\n",
 			 __func__, fmt_change_cp, fmt_change_digital,
 			 fmt_change_sdp);
-		v4l2_subdev_notify(sd, V4L2_DEVICE_NOTIFY_EVENT,
-				   (void *)&adv7842_ev_fmt);
+		v4l2_subdev_notify_event(sd, &adv7842_ev_fmt);
 		if (handled)
 			*handled = true;
 	}
@@ -2334,7 +2333,7 @@ struct adv7842_cfg_read_infoframe {
 static void log_infoframe(struct v4l2_subdev *sd, struct adv7842_cfg_read_infoframe *cri)
 {
 	int i;
-	uint8_t buffer[32];
+	u8 buffer[32];
 	union hdmi_infoframe frame;
 	u8 len;
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
@@ -2407,7 +2406,7 @@ static const char * const prim_mode_txt[] = {
 static int adv7842_sdp_log_status(struct v4l2_subdev *sd)
 {
 	/* SDP (Standard definition processor) block */
-	uint8_t sdp_signal_detected = sdp_read(sd, 0x5A) & 0x01;
+	u8 sdp_signal_detected = sdp_read(sd, 0x5A) & 0x01;
 
 	v4l2_info(sd, "Chip powered %s\n", no_power(sd) ? "off" : "on");
 	v4l2_info(sd, "Prim-mode = 0x%x, video std = 0x%x\n",
@@ -2451,10 +2450,10 @@ static int adv7842_cp_log_status(struct v4l2_subdev *sd)
 	/* CP block */
 	struct adv7842_state *state = to_state(sd);
 	struct v4l2_dv_timings timings;
-	uint8_t reg_io_0x02 = io_read(sd, 0x02);
-	uint8_t reg_io_0x21 = io_read(sd, 0x21);
-	uint8_t reg_rep_0x77 = rep_read(sd, 0x77);
-	uint8_t reg_rep_0x7d = rep_read(sd, 0x7d);
+	u8 reg_io_0x02 = io_read(sd, 0x02);
+	u8 reg_io_0x21 = io_read(sd, 0x21);
+	u8 reg_rep_0x77 = rep_read(sd, 0x77);
+	u8 reg_rep_0x7d = rep_read(sd, 0x7d);
 	bool audio_pll_locked = hdmi_read(sd, 0x04) & 0x01;
 	bool audio_sample_packet_detect = hdmi_read(sd, 0x18) & 0x01;
 	bool audio_mute = io_read(sd, 0x65) & 0x40;
@@ -2526,10 +2525,10 @@ static int adv7842_cp_log_status(struct v4l2_subdev *sd)
 	if (no_cp_signal(sd)) {
 		v4l2_info(sd, "STDI: not locked\n");
 	} else {
-		uint32_t bl = ((cp_read(sd, 0xb1) & 0x3f) << 8) | cp_read(sd, 0xb2);
-		uint32_t lcf = ((cp_read(sd, 0xb3) & 0x7) << 8) | cp_read(sd, 0xb4);
-		uint32_t lcvs = cp_read(sd, 0xb3) >> 3;
-		uint32_t fcl = ((cp_read(sd, 0xb8) & 0x1f) << 8) | cp_read(sd, 0xb9);
+		u32 bl = ((cp_read(sd, 0xb1) & 0x3f) << 8) | cp_read(sd, 0xb2);
+		u32 lcf = ((cp_read(sd, 0xb3) & 0x7) << 8) | cp_read(sd, 0xb4);
+		u32 lcvs = cp_read(sd, 0xb3) >> 3;
+		u32 fcl = ((cp_read(sd, 0xb8) & 0x1f) << 8) | cp_read(sd, 0xb9);
 		char hs_pol = ((cp_read(sd, 0xb5) & 0x10) ?
 				((cp_read(sd, 0xb5) & 0x08) ? '+' : '-') : 'x');
 		char vs_pol = ((cp_read(sd, 0xb5) & 0x40) ?
@@ -3005,6 +3004,20 @@ static long adv7842_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	return -ENOTTY;
 }
 
+static int adv7842_subscribe_event(struct v4l2_subdev *sd,
+				   struct v4l2_fh *fh,
+				   struct v4l2_event_subscription *sub)
+{
+	switch (sub->type) {
+	case V4L2_EVENT_SOURCE_CHANGE:
+		return v4l2_src_change_event_subdev_subscribe(sd, fh, sub);
+	case V4L2_EVENT_CTRL:
+		return v4l2_ctrl_subdev_subscribe_event(sd, fh, sub);
+	default:
+		return -EINVAL;
+	}
+}
+
 /* ----------------------------------------------------------------------- */
 
 static const struct v4l2_ctrl_ops adv7842_ctrl_ops = {
@@ -3015,6 +3028,8 @@ static const struct v4l2_subdev_core_ops adv7842_core_ops = {
 	.log_status = adv7842_log_status,
 	.ioctl = adv7842_ioctl,
 	.interrupt_service_routine = adv7842_isr,
+	.subscribe_event = adv7842_subscribe_event,
+	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.g_register = adv7842_g_register,
 	.s_register = adv7842_s_register,
@@ -3210,7 +3225,7 @@ static int adv7842_probe(struct i2c_client *client,
 
 	sd = &state->sd;
 	v4l2_i2c_subdev_init(sd, client, &adv7842_ops);
-	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS;
 	state->mode = pdata->mode;
 
 	state->hdmi_port_a = pdata->input == ADV7842_SELECT_HDMI_PORT_A;
@@ -3348,7 +3363,6 @@ MODULE_DEVICE_TABLE(i2c, adv7842_id);
 
 static struct i2c_driver adv7842_driver = {
 	.driver = {
-		.owner = THIS_MODULE,
 		.name = "adv7842",
 	},
 	.probe = adv7842_probe,

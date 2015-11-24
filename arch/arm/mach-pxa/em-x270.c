@@ -46,7 +46,7 @@
 #include <linux/platform_data/usb-ohci-pxa27x.h>
 #include <linux/platform_data/mmc-pxamci.h>
 #include <linux/platform_data/keypad-pxa27x.h>
-#include <linux/platform_data/camera-pxa.h>
+#include <linux/platform_data/media/camera-pxa.h>
 
 #include "generic.h"
 #include "devices.h"
@@ -1306,6 +1306,8 @@ static void __init em_x270_init(void)
 	em_x270_init_i2c();
 	em_x270_init_camera();
 	em_x270_userspace_consumers_init();
+
+	regulator_has_full_constraints();
 }
 
 MACHINE_START(EM_X270, "Compulab EM-X270")

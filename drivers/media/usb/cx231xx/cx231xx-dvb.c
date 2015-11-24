@@ -819,7 +819,7 @@ static int dvb_init(struct cx231xx *dev)
 
 		dev->dvb[i]->frontend = dvb_attach(lgdt3305_attach,
 						&hcw_lgdt3305_config,
-						tuner_i2c);
+						demod_i2c);
 
 		if (dev->dvb[i]->frontend == NULL) {
 			dev_err(dev->dev,
@@ -840,7 +840,7 @@ static int dvb_init(struct cx231xx *dev)
 
 		dev->dvb[i]->frontend = dvb_attach(si2165_attach,
 			&hauppauge_930C_HD_1113xx_si2165_config,
-			tuner_i2c
+			demod_i2c
 			);
 
 		if (dev->dvb[i]->frontend == NULL) {
@@ -873,7 +873,7 @@ static int dvb_init(struct cx231xx *dev)
 
 		dev->dvb[i]->frontend = dvb_attach(si2165_attach,
 			&pctv_quatro_stick_1114xx_si2165_config,
-			tuner_i2c
+			demod_i2c
 			);
 
 		if (dev->dvb[i]->frontend == NULL) {
@@ -929,7 +929,7 @@ static int dvb_init(struct cx231xx *dev)
 
 		dev->dvb[i]->frontend = dvb_attach(lgdt3306a_attach,
 			&hauppauge_955q_lgdt3306a_config,
-			tuner_i2c
+			demod_i2c
 			);
 
 		if (dev->dvb[i]->frontend == NULL) {

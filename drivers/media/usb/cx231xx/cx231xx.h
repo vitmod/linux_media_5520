@@ -30,14 +30,14 @@
 #include <linux/mutex.h>
 #include <linux/usb.h>
 
-#include <media/cx2341x.h>
+#include <media/drv-intf/cx2341x.h>
 
 #include <media/videobuf-vmalloc.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-fh.h>
 #include <media/rc-core.h>
-#include <media/ir-kbd-i2c.h>
+#include <media/i2c/ir-kbd-i2c.h>
 #include <media/videobuf-dvb.h>
 
 #include "cx231xx-reg.h"
@@ -77,8 +77,9 @@
 #define CX231XX_BOARD_HAUPPAUGE_930C_HD_1113xx 19
 #define CX231XX_BOARD_HAUPPAUGE_930C_HD_1114xx 20
 #define CX231XX_BOARD_HAUPPAUGE_955Q 21
-#define CX231XX_BOARD_TBS_5280 22
-#define CX231XX_BOARD_TBS_5281 23
+#define CX231XX_BOARD_TERRATEC_GRABBY 22
+#define CX231XX_BOARD_TBS_5280 23
+#define CX231XX_BOARD_TBS_5281 24
 
 /* Limits minimum and default number of buffers */
 #define CX231XX_MIN_BUF                 4

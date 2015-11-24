@@ -63,16 +63,11 @@ resizer_calculate_line_length(u32 pix, int width, int height,
 	if (pix == MEDIA_BUS_FMT_UYVY8_2X8 ||
 	    pix == MEDIA_BUS_FMT_SGRBG12_1X12) {
 		*line_len = width << 1;
-	} else if (pix == MEDIA_BUS_FMT_Y8_1X8 ||
-		   pix == MEDIA_BUS_FMT_UV8_1X8) {
-		*line_len = width;
-		*line_len_c = width;
 	} else {
-		/* YUV 420 */
-		/* round width to upper 32 byte boundary */
 		*line_len = width;
 		*line_len_c = width;
 	}
+
 	/* adjust the line len to be a multiple of 32 */
 	*line_len += 31;
 	*line_len &= ~0x1f;
@@ -321,6 +316,7 @@ static int resizer_configure_output_win(struct vpfe_resizer_device *resizer)
 
 	outformat = &resizer->resizer_a.formats[RESIZER_PAD_SOURCE];
 
+	memset(&output_specs, 0x0, sizeof(struct vpfe_rsz_output_spec));
 	output_specs.vst_y = param->user_config.vst;
 	if (outformat->code == MEDIA_BUS_FMT_YDYUYDYV8_1X16)
 		output_specs.vst_c = param->user_config.vst;

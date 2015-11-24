@@ -36,7 +36,7 @@
 #include <media/v4l2-common.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-event.h>
-#include <media/msp3400.h>
+#include <media/drv-intf/msp3400.h>
 #include <media/tuner.h>
 
 #include "dvb_frontend.h"
@@ -749,8 +749,7 @@ static void free_buffer(struct videobuf_queue *vq, struct cx231xx_buffer *buf)
 	struct cx231xx *dev = fh->dev;
 	unsigned long flags = 0;
 
-	if (in_interrupt())
-		BUG();
+	BUG_ON(in_interrupt());
 
 	/* We used to wait for the buffer to finish here, but this didn't work
 	   because, as we were keeping the state as VIDEOBUF_QUEUED,
@@ -1115,7 +1114,8 @@ int cx231xx_enum_input(struct file *file, void *priv,
 	struct cx231xx_fh *fh = priv;
 	struct cx231xx *dev = fh->dev;
 	u32 gen_stat;
-	unsigned int ret, n;
+	unsigned int n;
+	int ret;
 
 	n = i->index;
 	if (n >= MAX_CX231XX_INPUT)
@@ -1876,7 +1876,7 @@ static int cx231xx_close(struct file *filp)
 			v4l2_fh_exit(&fh->fh);
 			kfree(fh);
 			dev->users--;
-			wake_up_interruptible_nr(&dev->open, 1);
+			wake_up_interruptible(&dev->open);
 			return 0;
 		}
 
@@ -1909,7 +1909,7 @@ static int cx231xx_close(struct file *filp)
 	}
 	v4l2_fh_exit(&fh->fh);
 	kfree(fh);
-	wake_up_interruptible_nr(&dev->open, 1);
+	wake_up_interruptible(&dev->open);
 	return 0;
 }
 

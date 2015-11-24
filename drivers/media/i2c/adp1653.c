@@ -37,7 +37,7 @@
 #include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/gpio/consumer.h>
-#include <media/adp1653.h>
+#include <media/i2c/adp1653.h>
 #include <media/v4l2-device.h>
 
 #define TIMEOUT_MAX		820000
@@ -465,7 +465,7 @@ static int adp1653_of_init(struct i2c_client *client,
 
 	of_node_put(child);
 
-	pd->enable_gpio = devm_gpiod_get(&client->dev, "enable");
+	pd->enable_gpio = devm_gpiod_get(&client->dev, "enable", GPIOD_OUT_LOW);
 	if (!pd->enable_gpio) {
 		dev_err(&client->dev, "Error getting GPIO\n");
 		return -EINVAL;
