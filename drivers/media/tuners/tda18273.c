@@ -1982,41 +1982,6 @@ err:
 	return ret;
 }
 
-static int tda18273_set_state(struct dvb_frontend *fe, enum tuner_param param, struct tuner_state *state)
-{
-	return -EINVAL;
-}
-
-static int tda18273_get_state(struct dvb_frontend *fe, enum tuner_param param, struct tuner_state *state)
-{
-	struct tda18273_state *priv		= fe->tuner_priv;
-	int ret;
-
-	switch (param) {
-	case DVBFE_TUNER_FREQUENCY:
-		state->frequency = priv->freq_hz;
-		ret = 0;
-		break;
-	case DVBFE_TUNER_TUNERSTEP:
-		state->tunerstep = fe->ops.tuner_ops.info.frequency_step;
-		ret = 0;
-		break;
-	case DVBFE_TUNER_IFFREQ:
-		state->ifreq = priv->if_freq;
-		ret = 0;
-		break;
-	case DVBFE_TUNER_BANDWIDTH:
-		if (fe->ops.info.type == FE_OFDM)
-			state->bandwidth = priv->bandwidth;
-		ret = 0;
-		break;
-	default:
-		ret = -EINVAL;
-		break;
-	}
-	return ret;
-}
-
 static int tda18273_set_params(struct dvb_frontend *fe)
 {
 	struct dtv_frontend_properties *c = &fe->dtv_property_cache;
@@ -2143,8 +2108,6 @@ static struct dvb_tuner_ops tda18273_ops = {
 //	.sleep			= tda18273_sleep,
 	.get_status		= tda18273_get_status,
 	.set_params		= tda18273_set_params,
-	.set_state		= tda18273_set_state,
-	.get_state		= tda18273_get_state,
 	.get_frequency		= tda18273_get_freq,
 	.get_bandwidth		= tda18273_get_bandwidth,
 	.get_if_frequency	= tda18273_get_if_freq,

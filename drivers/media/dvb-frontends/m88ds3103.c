@@ -763,13 +763,10 @@ static int m88ds3103_sleep(struct dvb_frontend *fe)
 	int ret;
 	unsigned int utmp;
 
-<<<<<<< HEAD
-	dev_dbg(&priv->i2c->dev, "%s:\n", __func__);
+	dev_dbg(&client->dev, "\n");
+
 	if (priv->cfg->set_lock_led)
 		priv->cfg->set_lock_led(fe, 0);
-=======
-	dev_dbg(&client->dev, "\n");
->>>>>>> 10897dacea26943dd80bd6629117f4620fc320ef
 
 	dev->fe_status = 0;
 	dev->delivery_system = SYS_UNDEFINED;
