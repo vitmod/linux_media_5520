@@ -404,9 +404,6 @@ static int tda10071_read_status(struct dvb_frontend *fe, enum fe_status *status)
 
 	dev->fe_status = *status;
 
-	if (priv->cfg.set_lock_led)
-		priv->cfg.set_lock_led(fe, *status & FE_HAS_LOCK);
-
 	/* signal strength */
 	if (dev->fe_status & FE_HAS_SIGNAL) {
 		cmd.args[0] = CMD_GET_AGCACC;
@@ -1073,9 +1070,6 @@ static int tda10071_sleep(struct dvb_frontend *fe)
 		ret = -EFAULT;
 		goto error;
 	}
-
-	if (priv->cfg.set_lock_led)
-		priv->cfg.set_lock_led(fe, 0);
 
 	cmd.args[0] = CMD_SET_SLEEP_MODE;
 	cmd.args[1] = 0;

@@ -133,8 +133,8 @@ static int m88ds3103_read_status(struct dvb_frontend *fe,
 		goto err;
 	}
 
-	if (priv->cfg->set_lock_led)
-		priv->cfg->set_lock_led(fe, *status & FE_HAS_LOCK);
+	if (dev->cfg->set_lock_led)
+		dev->cfg->set_lock_led(fe, *status & FE_HAS_LOCK);
 
 	dev->fe_status = *status;
 	dev_dbg(&client->dev, "lock=%02x status=%02x\n", utmp, *status);
@@ -765,8 +765,8 @@ static int m88ds3103_sleep(struct dvb_frontend *fe)
 
 	dev_dbg(&client->dev, "\n");
 
-	if (priv->cfg->set_lock_led)
-		priv->cfg->set_lock_led(fe, 0);
+	if (dev->cfg->set_lock_led)
+		dev->cfg->set_lock_led(fe, 0);
 
 	dev->fe_status = 0;
 	dev->delivery_system = SYS_UNDEFINED;
