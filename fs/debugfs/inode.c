@@ -44,11 +44,6 @@ static struct inode *debugfs_get_inode(struct super_block *sb)
 	return inode;
 }
 
-static inline int debugfs_positive(struct dentry *dentry)
-{
-	return d_really_is_positive(dentry) && !d_unhashed(dentry);
-}
-
 struct debugfs_mount_opts {
 	kuid_t uid;
 	kgid_t gid;
@@ -174,7 +169,7 @@ static void debugfs_evict_inode(struct inode *inode)
 	truncate_inode_pages_final(&inode->i_data);
 	clear_inode(inode);
 	if (S_ISLNK(inode->i_mode))
-		kfree(inode->i_private);
+		kfree(inode->i_link);
 }
 
 static const struct super_operations debugfs_super_operations = {
@@ -270,20 +265,24 @@ static struct dentry *start_creating(const char *name, struct dentry *parent)
 	if (!parent)
 		parent = debugfs_mount->mnt_root;
 
-	mutex_lock(&d_inode(parent)->i_mutex);
+	inode_lock(d_inode(parent));
 	dentry = lookup_one_len(name, parent, strlen(name));
 	if (!IS_ERR(dentry) && d_really_is_positive(dentry)) {
 		dput(dentry);
 		dentry = ERR_PTR(-EEXIST);
 	}
-	if (IS_ERR(dentry))
-		mutex_unlock(&d_inode(parent)->i_mutex);
+
+	if (IS_ERR(dentry)) {
+		inode_unlock(d_inode(parent));
+		simple_release_fs(&debugfs_mount, &debugfs_mount_count);
+	}
+
 	return dentry;
 }
 
 static struct dentry *failed_creating(struct dentry *dentry)
 {
-	mutex_unlock(&d_inode(dentry->d_parent)->i_mutex);
+	inode_unlock(d_inode(dentry->d_parent));
 	dput(dentry);
 	simple_release_fs(&debugfs_mount, &debugfs_mount_count);
 	return NULL;
@@ -291,7 +290,7 @@ static struct dentry *failed_creating(struct dentry *dentry)
 
 static struct dentry *end_creating(struct dentry *dentry)
 {
-	mutex_unlock(&d_inode(dentry->d_parent)->i_mutex);
+	inode_unlock(d_inode(dentry->d_parent));
 	return dentry;
 }
 
@@ -511,8 +510,8 @@ struct dentry *debugfs_create_symlink(const char *name, struct dentry *parent,
 		return failed_creating(dentry);
 	}
 	inode->i_mode = S_IFLNK | S_IRWXUGO;
-	inode->i_op = &debugfs_link_operations;
-	inode->i_private = link;
+	inode->i_op = &simple_symlink_inode_operations;
+	inode->i_link = link;
 	d_instantiate(dentry, inode);
 	return end_creating(dentry);
 }
@@ -522,7 +521,7 @@ static int __debugfs_remove(struct dentry *dentry, struct dentry *parent)
 {
 	int ret = 0;
 
-	if (debugfs_positive(dentry)) {
+	if (simple_positive(dentry)) {
 		dget(dentry);
 		if (d_is_dir(dentry))
 			ret = simple_rmdir(d_inode(parent), dentry);
@@ -538,7 +537,8 @@ static int __debugfs_remove(struct dentry *dentry, struct dentry *parent)
 /**
  * debugfs_remove - removes a file or directory from the debugfs filesystem
  * @dentry: a pointer to a the dentry of the file or directory to be
- *          removed.
+ *          removed.  If this parameter is NULL or an error value, nothing
+ *          will be done.
  *
  * This function removes a file or directory in debugfs that was previously
  * created with a call to another debugfs function (like
@@ -560,9 +560,9 @@ void debugfs_remove(struct dentry *dentry)
 	if (!parent || d_really_is_negative(parent))
 		return;
 
-	mutex_lock(&d_inode(parent)->i_mutex);
+	inode_lock(d_inode(parent));
 	ret = __debugfs_remove(dentry, parent);
-	mutex_unlock(&d_inode(parent)->i_mutex);
+	inode_unlock(d_inode(parent));
 	if (!ret)
 		simple_release_fs(&debugfs_mount, &debugfs_mount_count);
 }
@@ -570,7 +570,8 @@ EXPORT_SYMBOL_GPL(debugfs_remove);
 
 /**
  * debugfs_remove_recursive - recursively removes a directory
- * @dentry: a pointer to a the dentry of the directory to be removed.
+ * @dentry: a pointer to a the dentry of the directory to be removed.  If this
+ *          parameter is NULL or an error value, nothing will be done.
  *
  * This function recursively removes a directory tree in debugfs that
  * was previously created with a call to another debugfs function
@@ -593,7 +594,7 @@ void debugfs_remove_recursive(struct dentry *dentry)
 
 	parent = dentry;
  down:
-	mutex_lock(&d_inode(parent)->i_mutex);
+	inode_lock(d_inode(parent));
  loop:
 	/*
 	 * The parent->d_subdirs is protected by the d_lock. Outside that
@@ -602,13 +603,13 @@ void debugfs_remove_recursive(struct dentry *dentry)
 	 */
 	spin_lock(&parent->d_lock);
 	list_for_each_entry(child, &parent->d_subdirs, d_child) {
-		if (!debugfs_positive(child))
+		if (!simple_positive(child))
 			continue;
 
 		/* perhaps simple_empty(child) makes more sense */
 		if (!list_empty(&child->d_subdirs)) {
 			spin_unlock(&parent->d_lock);
-			mutex_unlock(&d_inode(parent)->i_mutex);
+			inode_unlock(d_inode(parent));
 			parent = child;
 			goto down;
 		}
@@ -623,16 +624,16 @@ void debugfs_remove_recursive(struct dentry *dentry)
 		 * from d_subdirs. When releasing the parent->d_lock we can
 		 * no longer trust that the next pointer is valid.
 		 * Restart the loop. We'll skip this one with the
-		 * debugfs_positive() check.
+		 * simple_positive() check.
 		 */
 		goto loop;
 	}
 	spin_unlock(&parent->d_lock);
 
-	mutex_unlock(&d_inode(parent)->i_mutex);
+	inode_unlock(d_inode(parent));
 	child = parent;
 	parent = parent->d_parent;
-	mutex_lock(&d_inode(parent)->i_mutex);
+	inode_lock(d_inode(parent));
 
 	if (child != dentry)
 		/* go up */
@@ -640,7 +641,7 @@ void debugfs_remove_recursive(struct dentry *dentry)
 
 	if (!__debugfs_remove(child, parent))
 		simple_release_fs(&debugfs_mount, &debugfs_mount_count);
-	mutex_unlock(&d_inode(parent)->i_mutex);
+	inode_unlock(d_inode(parent));
 }
 EXPORT_SYMBOL_GPL(debugfs_remove_recursive);
 
@@ -716,20 +717,17 @@ bool debugfs_initialized(void)
 }
 EXPORT_SYMBOL_GPL(debugfs_initialized);
 
-
-static struct kobject *debug_kobj;
-
 static int __init debugfs_init(void)
 {
 	int retval;
 
-	debug_kobj = kobject_create_and_add("debug", kernel_kobj);
-	if (!debug_kobj)
-		return -EINVAL;
+	retval = sysfs_create_mount_point(kernel_kobj, "debug");
+	if (retval)
+		return retval;
 
 	retval = register_filesystem(&debug_fs_type);
 	if (retval)
-		kobject_put(debug_kobj);
+		sysfs_remove_mount_point(kernel_kobj, "debug");
 	else
 		debugfs_registered = true;
 

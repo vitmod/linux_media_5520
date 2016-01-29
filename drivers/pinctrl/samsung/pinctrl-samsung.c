@@ -33,11 +33,6 @@
 #include "../core.h"
 #include "pinctrl-samsung.h"
 
-#define GROUP_SUFFIX		"-grp"
-#define GSUFFIX_LEN		sizeof(GROUP_SUFFIX)
-#define FUNCTION_SUFFIX		"-mux"
-#define FSUFFIX_LEN		sizeof(FUNCTION_SUFFIX)
-
 /* list of all possible config options supported */
 static struct pin_config {
 	const char *property;
@@ -54,11 +49,6 @@ static struct pin_config {
 static LIST_HEAD(drvdata_list);
 
 static unsigned int pin_base;
-
-static inline struct samsung_pin_bank *gc_to_pin_bank(struct gpio_chip *gc)
-{
-	return container_of(gc, struct samsung_pin_bank, gpio_chip);
-}
 
 static int samsung_get_group_count(struct pinctrl_dev *pctldev)
 {
@@ -527,7 +517,7 @@ static const struct pinconf_ops samsung_pinconf_ops = {
 /* gpiolib gpio_set callback function */
 static void samsung_gpio_set(struct gpio_chip *gc, unsigned offset, int value)
 {
-	struct samsung_pin_bank *bank = gc_to_pin_bank(gc);
+	struct samsung_pin_bank *bank = gpiochip_get_data(gc);
 	const struct samsung_pin_bank_type *type = bank->type;
 	unsigned long flags;
 	void __iomem *reg;
@@ -551,7 +541,7 @@ static int samsung_gpio_get(struct gpio_chip *gc, unsigned offset)
 {
 	void __iomem *reg;
 	u32 data;
-	struct samsung_pin_bank *bank = gc_to_pin_bank(gc);
+	struct samsung_pin_bank *bank = gpiochip_get_data(gc);
 	const struct samsung_pin_bank_type *type = bank->type;
 
 	reg = bank->drvdata->virt_base + bank->pctl_offset;
@@ -576,7 +566,7 @@ static int samsung_gpio_set_direction(struct gpio_chip *gc,
 	u32 data, mask, shift;
 	unsigned long flags;
 
-	bank = gc_to_pin_bank(gc);
+	bank = gpiochip_get_data(gc);
 	type = bank->type;
 	drvdata = bank->drvdata;
 
@@ -624,7 +614,7 @@ static int samsung_gpio_direction_output(struct gpio_chip *gc, unsigned offset,
  */
 static int samsung_gpio_to_irq(struct gpio_chip *gc, unsigned offset)
 {
-	struct samsung_pin_bank *bank = gc_to_pin_bank(gc);
+	struct samsung_pin_bank *bank = gpiochip_get_data(gc);
 	unsigned int virq;
 
 	if (!bank->irq_domain)
@@ -806,7 +796,7 @@ static int samsung_pinctrl_parse_dt(struct platform_device *pdev,
 	functions = samsung_pinctrl_create_functions(dev, drvdata, &func_cnt);
 	if (IS_ERR(functions)) {
 		dev_err(dev, "failed to parse pin functions\n");
-		return PTR_ERR(groups);
+		return PTR_ERR(functions);
 	}
 
 	drvdata->pin_groups = groups;
@@ -873,9 +863,9 @@ static int samsung_pinctrl_register(struct platform_device *pdev,
 		return ret;
 
 	drvdata->pctl_dev = pinctrl_register(ctrldesc, &pdev->dev, drvdata);
-	if (!drvdata->pctl_dev) {
+	if (IS_ERR(drvdata->pctl_dev)) {
 		dev_err(&pdev->dev, "could not register pinctrl driver\n");
-		return -EINVAL;
+		return PTR_ERR(drvdata->pctl_dev);
 	}
 
 	for (bank = 0; bank < drvdata->nr_banks; ++bank) {
@@ -893,19 +883,9 @@ static int samsung_pinctrl_register(struct platform_device *pdev,
 	return 0;
 }
 
-static int samsung_gpio_request(struct gpio_chip *chip, unsigned offset)
-{
-	return pinctrl_request_gpio(chip->base + offset);
-}
-
-static void samsung_gpio_free(struct gpio_chip *chip, unsigned offset)
-{
-	pinctrl_free_gpio(chip->base + offset);
-}
-
 static const struct gpio_chip samsung_gpiolib_chip = {
-	.request = samsung_gpio_request,
-	.free = samsung_gpio_free,
+	.request = gpiochip_generic_request,
+	.free = gpiochip_generic_free,
 	.set = samsung_gpio_set,
 	.get = samsung_gpio_get,
 	.direction_input = samsung_gpio_direction_input,
@@ -929,11 +909,11 @@ static int samsung_gpiolib_register(struct platform_device *pdev,
 		gc = &bank->gpio_chip;
 		gc->base = drvdata->pin_base + bank->pin_base;
 		gc->ngpio = bank->nr_pins;
-		gc->dev = &pdev->dev;
+		gc->parent = &pdev->dev;
 		gc->of_node = bank->of_node;
 		gc->label = bank->name;
 
-		ret = gpiochip_add(gc);
+		ret = gpiochip_add_data(gc, bank);
 		if (ret) {
 			dev_err(&pdev->dev, "failed to register gpio_chip %s, error code: %d\n",
 							gc->label, ret);
@@ -1237,6 +1217,8 @@ static const struct of_device_id samsung_pinctrl_dt_match[] = {
 		.data = (void *)exynos5250_pin_ctrl },
 	{ .compatible = "samsung,exynos5260-pinctrl",
 		.data = (void *)exynos5260_pin_ctrl },
+	{ .compatible = "samsung,exynos5410-pinctrl",
+		.data = (void *)exynos5410_pin_ctrl },
 	{ .compatible = "samsung,exynos5420-pinctrl",
 		.data = (void *)exynos5420_pin_ctrl },
 	{ .compatible = "samsung,exynos5433-pinctrl",

@@ -19,6 +19,7 @@ struct sock;
 struct local_ports {
 	seqlock_t	lock;
 	int		range[2];
+	bool		warned;
 };
 
 struct ping_group_range {
@@ -77,16 +78,25 @@ struct netns_ipv4 {
 	struct local_ports ip_local_ports;
 
 	int sysctl_tcp_ecn;
+	int sysctl_tcp_ecn_fallback;
+
 	int sysctl_ip_no_pmtu_disc;
 	int sysctl_ip_fwd_use_pmtu;
 	int sysctl_ip_nonlocal_bind;
 
 	int sysctl_fwmark_reflect;
 	int sysctl_tcp_fwmark_accept;
+#ifdef CONFIG_NET_L3_MASTER_DEV
+	int sysctl_tcp_l3mdev_accept;
+#endif
 	int sysctl_tcp_mtu_probing;
 	int sysctl_tcp_base_mss;
 	int sysctl_tcp_probe_threshold;
 	u32 sysctl_tcp_probe_interval;
+
+	int sysctl_tcp_keepalive_time;
+	int sysctl_tcp_keepalive_probes;
+	int sysctl_tcp_keepalive_intvl;
 
 	struct ping_group_range ping_group_range;
 

@@ -54,7 +54,7 @@ static struct adv7511 *encoder_to_adv7511(struct drm_encoder *encoder)
 }
 
 /* ADI recommended values for proper operation. */
-static const struct reg_default adv7511_fixed_registers[] = {
+static const struct reg_sequence adv7511_fixed_registers[] = {
 	{ 0x98, 0x03 },
 	{ 0x9a, 0xe0 },
 	{ 0x9c, 0x30 },
@@ -438,7 +438,7 @@ static int adv7511_irq_process(struct adv7511 *adv7511)
 	regmap_write(adv7511->regmap, ADV7511_REG_INT(0), irq0);
 	regmap_write(adv7511->regmap, ADV7511_REG_INT(1), irq1);
 
-	if (irq0 & ADV7511_INT0_HDP)
+	if (irq0 & ADV7511_INT0_HDP && adv7511->encoder)
 		drm_helper_hpd_irq_event(adv7511->encoder->dev);
 
 	if (irq0 & ADV7511_INT0_EDID_READY || irq1 & ADV7511_INT1_DDC_ERROR) {
@@ -752,7 +752,7 @@ static void adv7511_encoder_mode_set(struct drm_encoder *encoder,
 	adv7511->f_tmds = mode->clock;
 }
 
-static struct drm_encoder_slave_funcs adv7511_encoder_funcs = {
+static const struct drm_encoder_slave_funcs adv7511_encoder_funcs = {
 	.dpms = adv7511_encoder_dpms,
 	.mode_valid = adv7511_encoder_mode_valid,
 	.mode_set = adv7511_encoder_mode_set,

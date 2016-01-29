@@ -84,12 +84,14 @@ cifs_prime_dcache(struct dentry *parent, struct qstr *name,
 	cifs_dbg(FYI, "%s: for %s\n", __func__, name->name);
 
 	dentry = d_hash_and_lookup(parent, name);
-	if (unlikely(IS_ERR(dentry)))
+	if (IS_ERR(dentry))
 		return;
 
 	if (dentry) {
 		inode = d_inode(dentry);
 		if (inode) {
+			if (d_mountpoint(dentry))
+				goto out;
 			/*
 			 * If we're generating inode numbers, then we don't
 			 * want to clobber the existing one with the one that
@@ -845,6 +847,7 @@ int cifs_readdir(struct file *file, struct dir_context *ctx)
 		 * if buggy server returns . and .. late do we want to
 		 * check for that here?
 		 */
+		*tmp_buf = 0;
 		rc = cifs_filldir(current_entry, file, ctx,
 				  tmp_buf, max_len);
 		if (rc) {

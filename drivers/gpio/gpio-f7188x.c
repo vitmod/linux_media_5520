@@ -172,7 +172,7 @@ static struct f7188x_gpio_bank f71869a_gpio_bank[] = {
 };
 
 static struct f7188x_gpio_bank f71882_gpio_bank[] = {
-	F7188X_GPIO_BANK(0 , 8, 0xF0),
+	F7188X_GPIO_BANK(0, 8, 0xF0),
 	F7188X_GPIO_BANK(10, 8, 0xE0),
 	F7188X_GPIO_BANK(20, 8, 0xD0),
 	F7188X_GPIO_BANK(30, 4, 0xC0),
@@ -180,7 +180,7 @@ static struct f7188x_gpio_bank f71882_gpio_bank[] = {
 };
 
 static struct f7188x_gpio_bank f71889_gpio_bank[] = {
-	F7188X_GPIO_BANK(0 , 7, 0xF0),
+	F7188X_GPIO_BANK(0, 7, 0xF0),
 	F7188X_GPIO_BANK(10, 7, 0xE0),
 	F7188X_GPIO_BANK(20, 8, 0xD0),
 	F7188X_GPIO_BANK(30, 8, 0xC0),
@@ -193,8 +193,7 @@ static struct f7188x_gpio_bank f71889_gpio_bank[] = {
 static int f7188x_gpio_direction_in(struct gpio_chip *chip, unsigned offset)
 {
 	int err;
-	struct f7188x_gpio_bank *bank =
-		container_of(chip, struct f7188x_gpio_bank, chip);
+	struct f7188x_gpio_bank *bank = gpiochip_get_data(chip);
 	struct f7188x_sio *sio = bank->data->sio;
 	u8 dir;
 
@@ -215,8 +214,7 @@ static int f7188x_gpio_direction_in(struct gpio_chip *chip, unsigned offset)
 static int f7188x_gpio_get(struct gpio_chip *chip, unsigned offset)
 {
 	int err;
-	struct f7188x_gpio_bank *bank =
-		container_of(chip, struct f7188x_gpio_bank, chip);
+	struct f7188x_gpio_bank *bank = gpiochip_get_data(chip);
 	struct f7188x_sio *sio = bank->data->sio;
 	u8 dir, data;
 
@@ -241,8 +239,7 @@ static int f7188x_gpio_direction_out(struct gpio_chip *chip,
 				     unsigned offset, int value)
 {
 	int err;
-	struct f7188x_gpio_bank *bank =
-		container_of(chip, struct f7188x_gpio_bank, chip);
+	struct f7188x_gpio_bank *bank = gpiochip_get_data(chip);
 	struct f7188x_sio *sio = bank->data->sio;
 	u8 dir, data_out;
 
@@ -270,8 +267,7 @@ static int f7188x_gpio_direction_out(struct gpio_chip *chip,
 static void f7188x_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
 {
 	int err;
-	struct f7188x_gpio_bank *bank =
-		container_of(chip, struct f7188x_gpio_bank, chip);
+	struct f7188x_gpio_bank *bank = gpiochip_get_data(chip);
 	struct f7188x_sio *sio = bank->data->sio;
 	u8 data_out;
 
@@ -298,7 +294,7 @@ static int f7188x_gpio_probe(struct platform_device *pdev)
 {
 	int err;
 	int i;
-	struct f7188x_sio *sio = pdev->dev.platform_data;
+	struct f7188x_sio *sio = dev_get_platdata(&pdev->dev);
 	struct f7188x_gpio_data *data;
 
 	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
@@ -333,10 +329,10 @@ static int f7188x_gpio_probe(struct platform_device *pdev)
 	for (i = 0; i < data->nr_bank; i++) {
 		struct f7188x_gpio_bank *bank = &data->bank[i];
 
-		bank->chip.dev = &pdev->dev;
+		bank->chip.parent = &pdev->dev;
 		bank->data = data;
 
-		err = gpiochip_add(&bank->chip);
+		err = gpiochip_add_data(&bank->chip, bank);
 		if (err) {
 			dev_err(&pdev->dev,
 				"Failed to register gpiochip %d: %d\n",

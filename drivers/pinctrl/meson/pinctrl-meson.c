@@ -448,11 +448,6 @@ static const struct pinconf_ops meson_pinconf_ops = {
 	.is_generic		= true,
 };
 
-static inline struct meson_domain *to_meson_domain(struct gpio_chip *chip)
-{
-	return container_of(chip, struct meson_domain, chip);
-}
-
 static int meson_gpio_request(struct gpio_chip *chip, unsigned gpio)
 {
 	return pinctrl_request_gpio(chip->base + gpio);
@@ -460,14 +455,14 @@ static int meson_gpio_request(struct gpio_chip *chip, unsigned gpio)
 
 static void meson_gpio_free(struct gpio_chip *chip, unsigned gpio)
 {
-	struct meson_domain *domain = to_meson_domain(chip);
+	struct meson_domain *domain = gpiochip_get_data(chip);
 
 	pinctrl_free_gpio(domain->data->pin_base + gpio);
 }
 
 static int meson_gpio_direction_input(struct gpio_chip *chip, unsigned gpio)
 {
-	struct meson_domain *domain = to_meson_domain(chip);
+	struct meson_domain *domain = gpiochip_get_data(chip);
 	unsigned int reg, bit, pin;
 	struct meson_bank *bank;
 	int ret;
@@ -485,7 +480,7 @@ static int meson_gpio_direction_input(struct gpio_chip *chip, unsigned gpio)
 static int meson_gpio_direction_output(struct gpio_chip *chip, unsigned gpio,
 				       int value)
 {
-	struct meson_domain *domain = to_meson_domain(chip);
+	struct meson_domain *domain = gpiochip_get_data(chip);
 	unsigned int reg, bit, pin;
 	struct meson_bank *bank;
 	int ret;
@@ -507,7 +502,7 @@ static int meson_gpio_direction_output(struct gpio_chip *chip, unsigned gpio,
 
 static void meson_gpio_set(struct gpio_chip *chip, unsigned gpio, int value)
 {
-	struct meson_domain *domain = to_meson_domain(chip);
+	struct meson_domain *domain = gpiochip_get_data(chip);
 	unsigned int reg, bit, pin;
 	struct meson_bank *bank;
 	int ret;
@@ -524,7 +519,7 @@ static void meson_gpio_set(struct gpio_chip *chip, unsigned gpio, int value)
 
 static int meson_gpio_get(struct gpio_chip *chip, unsigned gpio)
 {
-	struct meson_domain *domain = to_meson_domain(chip);
+	struct meson_domain *domain = gpiochip_get_data(chip);
 	unsigned int reg, bit, val, pin;
 	struct meson_bank *bank;
 	int ret;
@@ -562,20 +557,20 @@ static int meson_gpiolib_register(struct meson_pinctrl *pc)
 		domain = &pc->domains[i];
 
 		domain->chip.label = domain->data->name;
-		domain->chip.dev = pc->dev;
+		domain->chip.parent = pc->dev;
 		domain->chip.request = meson_gpio_request;
 		domain->chip.free = meson_gpio_free;
 		domain->chip.direction_input = meson_gpio_direction_input;
 		domain->chip.direction_output = meson_gpio_direction_output;
 		domain->chip.get = meson_gpio_get;
 		domain->chip.set = meson_gpio_set;
-		domain->chip.base = -1;
+		domain->chip.base = domain->data->pin_base;
 		domain->chip.ngpio = domain->data->num_pins;
 		domain->chip.can_sleep = false;
 		domain->chip.of_node = domain->of_node;
 		domain->chip.of_gpio_n_cells = 2;
 
-		ret = gpiochip_add(&domain->chip);
+		ret = gpiochip_add_data(&domain->chip, domain);
 		if (ret) {
 			dev_err(pc->dev, "can't add gpio chip %s\n",
 				domain->data->name);
@@ -738,9 +733,9 @@ static int meson_pinctrl_probe(struct platform_device *pdev)
 	pc->desc.npins		= pc->data->num_pins;
 
 	pc->pcdev = pinctrl_register(&pc->desc, pc->dev, pc);
-	if (!pc->pcdev) {
+	if (IS_ERR(pc->pcdev)) {
 		dev_err(pc->dev, "can't register pinctrl device");
-		return -EINVAL;
+		return PTR_ERR(pc->pcdev);
 	}
 
 	ret = meson_gpiolib_register(pc);

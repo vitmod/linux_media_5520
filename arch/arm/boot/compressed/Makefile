@@ -51,10 +51,6 @@ else
 endif
 endif
 
-ifeq ($(CONFIG_ARCH_SHMOBILE_LEGACY),y)
-OBJS		+= head-shmobile.o
-endif
-
 #
 # We now have a PIC decompressor implementation.  Decompressors running
 # from RAM should not define ZTEXTADDR.  Decompressors running directly
@@ -102,6 +98,8 @@ targets       := vmlinux vmlinux.lds \
 extra-y       += piggy.gzip piggy.lzo piggy.lzma piggy.xzkern piggy.lz4 \
 		 lib1funcs.S ashldi3.S bswapsdi2.S $(libfdt) $(libfdt_hdrs) \
 		 hyp-stub.S
+
+KBUILD_CFLAGS += -DDISABLE_BRANCH_PROFILING
 
 ifeq ($(CONFIG_FUNCTION_TRACER),y)
 ORIG_CFLAGS := $(KBUILD_CFLAGS)
@@ -169,9 +167,11 @@ if [ $(words $(ZRELADDR)) -gt 1 -a "$(CONFIG_AUTO_ZRELADDR)" = "" ]; then \
 	false; \
 fi
 
+efi-obj-$(CONFIG_EFI_STUB) := $(objtree)/drivers/firmware/efi/libstub/lib.a
+
 $(obj)/vmlinux: $(obj)/vmlinux.lds $(obj)/$(HEAD) $(obj)/piggy.$(suffix_y).o \
 		$(addprefix $(obj)/, $(OBJS)) $(lib1funcs) $(ashldi3) \
-		$(bswapsdi2) FORCE
+		$(bswapsdi2) $(efi-obj-y) FORCE
 	@$(check_for_multiple_zreladdr)
 	$(call if_changed,ld)
 	@$(check_for_bad_syms)

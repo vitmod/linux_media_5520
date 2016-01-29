@@ -279,7 +279,7 @@ MODULE_FIRMWARE("myri10ge_eth_z8e.dat");
 MODULE_FIRMWARE("myri10ge_rss_ethp_z8e.dat");
 MODULE_FIRMWARE("myri10ge_rss_eth_z8e.dat");
 
-/* Careful: must be accessed under kparam_block_sysfs_write */
+/* Careful: must be accessed under kernel_param_lock() */
 static char *myri10ge_fw_name = NULL;
 module_param(myri10ge_fw_name, charp, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(myri10ge_fw_name, "Firmware image name");
@@ -1488,7 +1488,6 @@ myri10ge_rx_done(struct myri10ge_slice_state *ss, int len, __wsum csum)
 	}
 	myri10ge_vlan_rx(mgp->dev, va, skb);
 	skb_record_rx_queue(skb, ss - &mgp->ss[0]);
-	skb_mark_napi_id(skb, &ss->napi);
 
 	if (polling) {
 		int hlen;
@@ -1506,6 +1505,7 @@ myri10ge_rx_done(struct myri10ge_slice_state *ss, int len, __wsum csum)
 		skb->data_len -= hlen;
 		skb->tail += hlen;
 		skb->protocol = eth_type_trans(skb, dev);
+		skb_mark_napi_id(skb, &ss->napi);
 		netif_receive_skb(skb);
 	}
 	else
@@ -3427,7 +3427,7 @@ static void myri10ge_select_firmware(struct myri10ge_priv *mgp)
 		}
 	}
 
-	kparam_block_sysfs_write(myri10ge_fw_name);
+	kernel_param_lock(THIS_MODULE);
 	if (myri10ge_fw_name != NULL) {
 		char *fw_name = kstrdup(myri10ge_fw_name, GFP_KERNEL);
 		if (fw_name) {
@@ -3435,7 +3435,7 @@ static void myri10ge_select_firmware(struct myri10ge_priv *mgp)
 			set_fw_name(mgp, fw_name, true);
 		}
 	}
-	kparam_unblock_sysfs_write(myri10ge_fw_name);
+	kernel_param_unlock(THIS_MODULE);
 
 	if (mgp->board_number < MYRI10GE_MAX_BOARDS &&
 	    myri10ge_fw_names[mgp->board_number] != NULL &&
@@ -3814,7 +3814,6 @@ static int myri10ge_alloc_slices(struct myri10ge_priv *mgp)
 		ss->dev = mgp->dev;
 		netif_napi_add(ss->dev, &ss->napi, myri10ge_poll,
 			       myri10ge_napi_weight);
-		napi_hash_add(&ss->napi);
 	}
 	return 0;
 abort:

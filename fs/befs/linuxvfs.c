@@ -42,8 +42,7 @@ static struct inode *befs_iget(struct super_block *, unsigned long);
 static struct inode *befs_alloc_inode(struct super_block *sb);
 static void befs_destroy_inode(struct inode *inode);
 static void befs_destroy_inodecache(void);
-static void *befs_follow_link(struct dentry *, struct nameidata *);
-static void *befs_fast_follow_link(struct dentry *, struct nameidata *);
+static int befs_symlink_readpage(struct file *, struct page *);
 static int befs_utf2nls(struct super_block *sb, const char *in, int in_len,
 			char **out, int *out_len);
 static int befs_nls2utf(struct super_block *sb, const char *in, int in_len,
@@ -80,15 +79,8 @@ static const struct address_space_operations befs_aops = {
 	.bmap		= befs_bmap,
 };
 
-static const struct inode_operations befs_fast_symlink_inode_operations = {
-	.readlink	= generic_readlink,
-	.follow_link	= befs_fast_follow_link,
-};
-
-static const struct inode_operations befs_symlink_inode_operations = {
-	.readlink	= generic_readlink,
-	.follow_link	= befs_follow_link,
-	.put_link	= kfree_put_link,
+static const struct address_space_operations befs_symlink_aops = {
+	.readpage	= befs_symlink_readpage,
 };
 
 /* 
@@ -403,10 +395,14 @@ static struct inode *befs_iget(struct super_block *sb, unsigned long ino)
 		inode->i_op = &befs_dir_inode_operations;
 		inode->i_fop = &befs_dir_operations;
 	} else if (S_ISLNK(inode->i_mode)) {
-		if (befs_ino->i_flags & BEFS_LONG_SYMLINK)
-			inode->i_op = &befs_symlink_inode_operations;
-		else
-			inode->i_op = &befs_fast_symlink_inode_operations;
+		if (befs_ino->i_flags & BEFS_LONG_SYMLINK) {
+			inode->i_op = &page_symlink_inode_operations;
+			inode_nohighmem(inode);
+			inode->i_mapping->a_ops = &befs_symlink_aops;
+		} else {
+			inode->i_link = befs_ino->i_data.symlink;
+			inode->i_op = &simple_symlink_inode_operations;
+		}
 	} else {
 		befs_error(sb, "Inode %lu is not a regular file, "
 			   "directory or symlink. THAT IS WRONG! BeFS has no "
@@ -438,7 +434,7 @@ befs_init_inodecache(void)
 	befs_inode_cachep = kmem_cache_create("befs_inode_cache",
 					      sizeof (struct befs_inode_info),
 					      0, (SLAB_RECLAIM_ACCOUNT|
-						SLAB_MEM_SPREAD),
+						SLAB_MEM_SPREAD|SLAB_ACCOUNT),
 					      init_once);
 	if (befs_inode_cachep == NULL) {
 		pr_err("%s: Couldn't initialize inode slabcache\n", __func__);
@@ -467,44 +463,33 @@ befs_destroy_inodecache(void)
  * The data stream become link name. Unless the LONG_SYMLINK
  * flag is set.
  */
-static void *
-befs_follow_link(struct dentry *dentry, struct nameidata *nd)
+static int befs_symlink_readpage(struct file *unused, struct page *page)
 {
-	struct super_block *sb = dentry->d_sb;
-	struct befs_inode_info *befs_ino = BEFS_I(d_inode(dentry));
+	struct inode *inode = page->mapping->host;
+	struct super_block *sb = inode->i_sb;
+	struct befs_inode_info *befs_ino = BEFS_I(inode);
 	befs_data_stream *data = &befs_ino->i_data.ds;
 	befs_off_t len = data->size;
-	char *link;
+	char *link = page_address(page);
 
-	if (len == 0) {
+	if (len == 0 || len > PAGE_SIZE) {
 		befs_error(sb, "Long symlink with illegal length");
-		link = ERR_PTR(-EIO);
-	} else {
-		befs_debug(sb, "Follow long symlink");
-
-		link = kmalloc(len, GFP_NOFS);
-		if (!link) {
-			link = ERR_PTR(-ENOMEM);
-		} else if (befs_read_lsymlink(sb, data, link, len) != len) {
-			kfree(link);
-			befs_error(sb, "Failed to read entire long symlink");
-			link = ERR_PTR(-EIO);
-		} else {
-			link[len - 1] = '\0';
-		}
+		goto fail;
 	}
-	nd_set_link(nd, link);
-	return NULL;
-}
+	befs_debug(sb, "Follow long symlink");
 
-
-static void *
-befs_fast_follow_link(struct dentry *dentry, struct nameidata *nd)
-{
-	struct befs_inode_info *befs_ino = BEFS_I(d_inode(dentry));
-
-	nd_set_link(nd, befs_ino->i_data.symlink);
-	return NULL;
+	if (befs_read_lsymlink(sb, data, link, len) != len) {
+		befs_error(sb, "Failed to read entire long symlink");
+		goto fail;
+	}
+	link[len - 1] = '\0';
+	SetPageUptodate(page);
+	unlock_page(page);
+	return 0;
+fail:
+	SetPageError(page);
+	unlock_page(page);
+	return -EIO;
 }
 
 /*

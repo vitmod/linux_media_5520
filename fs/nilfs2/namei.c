@@ -120,9 +120,6 @@ nilfs_mknod(struct inode *dir, struct dentry *dentry, umode_t mode, dev_t rdev)
 	struct nilfs_transaction_info ti;
 	int err;
 
-	if (!new_valid_dev(rdev))
-		return -EINVAL;
-
 	err = nilfs_transaction_begin(dir->i_sb, &ti, 1);
 	if (err)
 		return err;
@@ -164,6 +161,7 @@ static int nilfs_symlink(struct inode *dir, struct dentry *dentry,
 
 	/* slow symlink */
 	inode->i_op = &nilfs_symlink_inode_operations;
+	inode_nohighmem(inode);
 	inode->i_mapping->a_ops = &nilfs_aops;
 	err = page_symlink(inode, symname, l);
 	if (err)
@@ -496,8 +494,7 @@ static struct dentry *nilfs_fh_to_dentry(struct super_block *sb, struct fid *fh,
 {
 	struct nilfs_fid *fid = (struct nilfs_fid *)fh;
 
-	if ((fh_len != NILFS_FID_SIZE_NON_CONNECTABLE &&
-	     fh_len != NILFS_FID_SIZE_CONNECTABLE) ||
+	if (fh_len < NILFS_FID_SIZE_NON_CONNECTABLE ||
 	    (fh_type != FILEID_NILFS_WITH_PARENT &&
 	     fh_type != FILEID_NILFS_WITHOUT_PARENT))
 		return NULL;
@@ -510,7 +507,7 @@ static struct dentry *nilfs_fh_to_parent(struct super_block *sb, struct fid *fh,
 {
 	struct nilfs_fid *fid = (struct nilfs_fid *)fh;
 
-	if (fh_len != NILFS_FID_SIZE_CONNECTABLE ||
+	if (fh_len < NILFS_FID_SIZE_CONNECTABLE ||
 	    fh_type != FILEID_NILFS_WITH_PARENT)
 		return NULL;
 
@@ -572,8 +569,7 @@ const struct inode_operations nilfs_special_inode_operations = {
 
 const struct inode_operations nilfs_symlink_inode_operations = {
 	.readlink	= generic_readlink,
-	.follow_link	= page_follow_link_light,
-	.put_link	= page_put_link,
+	.get_link	= page_get_link,
 	.permission     = nilfs_permission,
 };
 

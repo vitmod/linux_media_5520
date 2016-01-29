@@ -3585,7 +3585,7 @@ static void __init config_types(void)
 		unsigned int type = UDP->cmos;
 		struct floppy_drive_params *params;
 		const char *name = NULL;
-		static char temparea[32];
+		char temparea[32];
 
 		if (type < ARRAY_SIZE(default_drive_params)) {
 			params = &default_drive_params[type].params;
@@ -3596,7 +3596,8 @@ static void __init config_types(void)
 				allowed_drive_mask &= ~(1 << drive);
 		} else {
 			params = &default_drive_params[0].params;
-			sprintf(temparea, "unknown type %d (usb?)", type);
+			snprintf(temparea, sizeof(temparea),
+				 "unknown type %d (usb?)", type);
 			name = temparea;
 		}
 		if (name) {
@@ -3771,13 +3772,14 @@ struct rb0_cbdata {
 	struct completion complete;
 };
 
-static void floppy_rb0_cb(struct bio *bio, int err)
+static void floppy_rb0_cb(struct bio *bio)
 {
 	struct rb0_cbdata *cbdata = (struct rb0_cbdata *)bio->bi_private;
 	int drive = cbdata->drive;
 
-	if (err) {
-		pr_info("floppy: error %d while reading block 0\n", err);
+	if (bio->bi_error) {
+		pr_info("floppy: error %d while reading block 0\n",
+			bio->bi_error);
 		set_bit(FD_OPEN_SHOULD_FAIL_BIT, &UDRS->flags);
 	}
 	complete(&cbdata->complete);

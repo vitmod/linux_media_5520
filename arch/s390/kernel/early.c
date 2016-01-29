@@ -17,6 +17,7 @@
 #include <linux/pfn.h>
 #include <linux/uaccess.h>
 #include <linux/kernel.h>
+#include <asm/diag.h>
 #include <asm/ebcdic.h>
 #include <asm/ipl.h>
 #include <asm/lowcore.h>
@@ -286,6 +287,7 @@ static __init void detect_diag9c(void)
 	int rc;
 
 	cpu_address = stap();
+	diag_stat_inc(DIAG_STAT_X09C);
 	asm volatile(
 		"	diag	%2,0,0x9c\n"
 		"0:	la	%0,0\n"
@@ -300,6 +302,7 @@ static __init void detect_diag44(void)
 {
 	int rc;
 
+	diag_stat_inc(DIAG_STAT_X044);
 	asm volatile(
 		"	diag	0,0,0x44\n"
 		"0:	la	%0,0\n"
@@ -326,9 +329,27 @@ static __init void detect_machine_facilities(void)
 		S390_lowcore.machine_flags |= MACHINE_FLAG_TE;
 	if (test_facility(51))
 		S390_lowcore.machine_flags |= MACHINE_FLAG_TLB_LC;
-	if (test_facility(129))
+	if (test_facility(129)) {
 		S390_lowcore.machine_flags |= MACHINE_FLAG_VX;
+		__ctl_set_bit(0, 17);
+	}
 }
+
+static inline void save_vector_registers(void)
+{
+#ifdef CONFIG_CRASH_DUMP
+	if (test_facility(129))
+		save_vx_regs(boot_cpu_vector_save_area);
+#endif
+}
+
+static int __init disable_vector_extension(char *str)
+{
+	S390_lowcore.machine_flags &= ~MACHINE_FLAG_VX;
+	__ctl_clear_bit(0, 17);
+	return 1;
+}
+early_param("novx", disable_vector_extension);
 
 static int __init cad_setup(char *str)
 {
@@ -438,6 +459,7 @@ void __init startup_init(void)
 	detect_diag9c();
 	detect_diag44();
 	detect_machine_facilities();
+	save_vector_registers();
 	setup_topology();
 	sclp_early_detect();
 	lockdep_on();

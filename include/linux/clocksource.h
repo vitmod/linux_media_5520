@@ -62,12 +62,18 @@ struct module;
  * @suspend:		suspend function for the clocksource, if necessary
  * @resume:		resume function for the clocksource, if necessary
  * @owner:		module reference, must be set by clocksource in modules
+ *
+ * Note: This struct is not used in hotpathes of the timekeeping code
+ * because the timekeeper caches the hot path fields in its own data
+ * structure, so no line cache alignment is required,
+ *
+ * The pointer to the clocksource itself is handed to the read
+ * callback. If you need extra information there you can wrap struct
+ * clocksource into your own struct. Depending on the amount of
+ * information you need you should consider to cache line align that
+ * structure.
  */
 struct clocksource {
-	/*
-	 * Hotpath data, fits in a single cache line when the
-	 * clocksource itself is cacheline aligned.
-	 */
 	cycle_t (*read)(struct clocksource *cs);
 	cycle_t mask;
 	u32 mult;
@@ -95,7 +101,7 @@ struct clocksource {
 	cycle_t wd_last;
 #endif
 	struct module *owner;
-} ____cacheline_aligned;
+};
 
 /*
  * Clock source flags bits::
@@ -181,7 +187,6 @@ static inline s64 clocksource_cyc2ns(cycle_t cycles, u32 mult, u32 shift)
 
 extern int clocksource_unregister(struct clocksource*);
 extern void clocksource_touch_watchdog(void);
-extern struct clocksource* clocksource_get_next(void);
 extern void clocksource_change_rating(struct clocksource *cs, int rating);
 extern void clocksource_suspend(void);
 extern void clocksource_resume(void);
@@ -247,16 +252,13 @@ extern int clocksource_i8253_init(void);
 #define CLOCKSOURCE_OF_DECLARE(name, compat, fn) \
 	OF_DECLARE_1(clksrc, name, compat, fn)
 
-#ifdef CONFIG_CLKSRC_OF
-extern void clocksource_of_init(void);
+#ifdef CONFIG_CLKSRC_PROBE
+extern void clocksource_probe(void);
 #else
-static inline void clocksource_of_init(void) {}
+static inline void clocksource_probe(void) {}
 #endif
 
-#ifdef CONFIG_ACPI
-void acpi_generic_timer_init(void);
-#else
-static inline void acpi_generic_timer_init(void) { }
-#endif
+#define CLOCKSOURCE_ACPI_DECLARE(name, table_id, fn)		\
+	ACPI_DECLARE_PROBE_ENTRY(clksrc, name, table_id, 0, NULL, 0, fn)
 
 #endif /* _LINUX_CLOCKSOURCE_H */

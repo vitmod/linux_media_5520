@@ -180,7 +180,7 @@ static int audit_match_filetype(struct audit_context *ctx, int val)
 		return 0;
 
 	list_for_each_entry(n, &ctx->names_list, list) {
-		if ((n->ino != -1) &&
+		if ((n->ino != AUDIT_INO_UNSET) &&
 		    ((n->mode & S_IFMT) == mode))
 			return 1;
 	}
@@ -466,6 +466,9 @@ static int audit_filter_rules(struct task_struct *tsk,
 				result = audit_comparator(ctx->ppid, f->op, f->val);
 			}
 			break;
+		case AUDIT_EXE:
+			result = audit_exe_compare(tsk, rule->exe);
+			break;
 		case AUDIT_UID:
 			result = audit_uid_comparator(cred->uid, f->op, f->uid);
 			break;
@@ -599,9 +602,7 @@ static int audit_filter_rules(struct task_struct *tsk,
 				result = match_tree_refs(ctx, rule->tree);
 			break;
 		case AUDIT_LOGINUID:
-			result = 0;
-			if (ctx)
-				result = audit_uid_comparator(tsk->loginuid, f->op, f->uid);
+			result = audit_uid_comparator(tsk->loginuid, f->op, f->uid);
 			break;
 		case AUDIT_LOGINUID_SET:
 			result = audit_comparator(audit_loginuid_set(tsk), f->op, f->val);
@@ -1023,8 +1024,7 @@ static int audit_log_single_execve_arg(struct audit_context *context,
 	 * for strings that are too long, we should not have created
 	 * any.
 	 */
-	if (unlikely((len == -1) || len > MAX_ARG_STRLEN - 1)) {
-		WARN_ON(1);
+	if (WARN_ON_ONCE(len < 0 || len > MAX_ARG_STRLEN - 1)) {
 		send_sig(SIGKILL, current, 0);
 		return -1;
 	}
@@ -1683,7 +1683,7 @@ static struct audit_names *audit_alloc_name(struct audit_context *context,
 		aname->should_free = true;
 	}
 
-	aname->ino = (unsigned long)-1;
+	aname->ino = AUDIT_INO_UNSET;
 	aname->type = type;
 	list_add_tail(&aname->list, &context->names_list);
 
@@ -1754,7 +1754,7 @@ void __audit_inode(struct filename *name, const struct dentry *dentry,
 		   unsigned int flags)
 {
 	struct audit_context *context = current->audit_context;
-	const struct inode *inode = d_backing_inode(dentry);
+	struct inode *inode = d_backing_inode(dentry);
 	struct audit_names *n;
 	bool parent = flags & AUDIT_INODE_PARENT;
 
@@ -1848,12 +1848,12 @@ void __audit_file(const struct file *file)
  * must be hooked prior, in order to capture the target inode during
  * unsuccessful attempts.
  */
-void __audit_inode_child(const struct inode *parent,
+void __audit_inode_child(struct inode *parent,
 			 const struct dentry *dentry,
 			 const unsigned char type)
 {
 	struct audit_context *context = current->audit_context;
-	const struct inode *inode = d_backing_inode(dentry);
+	struct inode *inode = d_backing_inode(dentry);
 	const char *dname = dentry->d_name.name;
 	struct audit_names *n, *found_parent = NULL, *found_child = NULL;
 
@@ -1925,7 +1925,7 @@ void __audit_inode_child(const struct inode *parent,
 	if (inode)
 		audit_copy_inode(found_child, dentry, inode);
 	else
-		found_child->ino = (unsigned long)-1;
+		found_child->ino = AUDIT_INO_UNSET;
 }
 EXPORT_SYMBOL_GPL(__audit_inode_child);
 

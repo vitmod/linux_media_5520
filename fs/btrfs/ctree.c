@@ -1011,7 +1011,7 @@ static noinline int update_ref_for_cow(struct btrfs_trans_handle *trans,
 			return ret;
 		if (refs == 0) {
 			ret = -EROFS;
-			btrfs_std_error(root->fs_info, ret);
+			btrfs_std_error(root->fs_info, ret, NULL);
 			return ret;
 		}
 	} else {
@@ -1159,8 +1159,10 @@ static noinline int __btrfs_cow_block(struct btrfs_trans_handle *trans,
 
 	if (test_bit(BTRFS_ROOT_REF_COWS, &root->state)) {
 		ret = btrfs_reloc_cow_block(trans, root, buf, cow);
-		if (ret)
+		if (ret) {
+			btrfs_abort_transaction(trans, root, ret);
 			return ret;
+		}
 	}
 
 	if (buf == root->node) {
@@ -1439,8 +1441,9 @@ get_old_root(struct btrfs_root *root, u64 time_seq)
 		btrfs_tree_read_unlock(eb_root);
 		free_extent_buffer(eb_root);
 		old = read_tree_block(root, logical, 0);
-		if (WARN_ON(!old || !extent_buffer_uptodate(old))) {
-			free_extent_buffer(old);
+		if (WARN_ON(IS_ERR(old) || !extent_buffer_uptodate(old))) {
+			if (!IS_ERR(old))
+				free_extent_buffer(old);
 			btrfs_warn(root->fs_info,
 				"failed to read tree block %llu from get_old_root", logical);
 		} else {
@@ -1552,7 +1555,7 @@ noinline int btrfs_cow_block(struct btrfs_trans_handle *trans,
 		return 0;
 	}
 
-	search_start = buf->start & ~((u64)(1024 * 1024 * 1024) - 1);
+	search_start = buf->start & ~((u64)SZ_1G - 1);
 
 	if (parent)
 		btrfs_set_lock_blocking(parent);
@@ -1685,7 +1688,9 @@ int btrfs_realloc_node(struct btrfs_trans_handle *trans,
 		if (!cur || !uptodate) {
 			if (!cur) {
 				cur = read_tree_block(root, blocknr, gen);
-				if (!cur || !extent_buffer_uptodate(cur)) {
+				if (IS_ERR(cur)) {
+					return PTR_ERR(cur);
+				} else if (!extent_buffer_uptodate(cur)) {
 					free_extent_buffer(cur);
 					return -EIO;
 				}
@@ -1864,8 +1869,9 @@ static noinline struct extent_buffer *read_node_slot(struct btrfs_root *root,
 
 	eb = read_tree_block(root, btrfs_node_blockptr(parent, slot),
 			     btrfs_node_ptr_generation(parent, slot));
-	if (eb && !extent_buffer_uptodate(eb)) {
-		free_extent_buffer(eb);
+	if (IS_ERR(eb) || !extent_buffer_uptodate(eb)) {
+		if (!IS_ERR(eb))
+			free_extent_buffer(eb);
 		eb = NULL;
 	}
 
@@ -1921,7 +1927,7 @@ static noinline int balance_level(struct btrfs_trans_handle *trans,
 		child = read_node_slot(root, mid, 0);
 		if (!child) {
 			ret = -EROFS;
-			btrfs_std_error(root->fs_info, ret);
+			btrfs_std_error(root->fs_info, ret, NULL);
 			goto enospc;
 		}
 
@@ -2024,7 +2030,7 @@ static noinline int balance_level(struct btrfs_trans_handle *trans,
 		 */
 		if (!left) {
 			ret = -EROFS;
-			btrfs_std_error(root->fs_info, ret);
+			btrfs_std_error(root->fs_info, ret, NULL);
 			goto enospc;
 		}
 		wret = balance_node_right(trans, root, mid, left);
@@ -2242,7 +2248,6 @@ static void reada_for_search(struct btrfs_root *root,
 	u64 target;
 	u64 nread = 0;
 	u64 gen;
-	int direction = path->reada;
 	struct extent_buffer *eb;
 	u32 nr;
 	u32 blocksize;
@@ -2270,16 +2275,16 @@ static void reada_for_search(struct btrfs_root *root,
 	nr = slot;
 
 	while (1) {
-		if (direction < 0) {
+		if (path->reada == READA_BACK) {
 			if (nr == 0)
 				break;
 			nr--;
-		} else if (direction > 0) {
+		} else if (path->reada == READA_FORWARD) {
 			nr++;
 			if (nr >= nritems)
 				break;
 		}
-		if (path->reada < 0 && objectid) {
+		if (path->reada == READA_BACK && objectid) {
 			btrfs_node_key(node, &disk_key, nr);
 			if (btrfs_disk_key_objectid(&disk_key) != objectid)
 				break;
@@ -2487,14 +2492,14 @@ read_block_for_search(struct btrfs_trans_handle *trans,
 	btrfs_set_path_blocking(p);
 
 	free_extent_buffer(tmp);
-	if (p->reada)
+	if (p->reada != READA_NONE)
 		reada_for_search(root, p, level, slot, key->objectid);
 
 	btrfs_release_path(p);
 
 	ret = -EAGAIN;
 	tmp = read_tree_block(root, blocknr, 0);
-	if (tmp) {
+	if (!IS_ERR(tmp)) {
 		/*
 		 * If the read above didn't mark this buffer up to date,
 		 * it will never end up being up to date.  Set ret to EIO now
@@ -4934,8 +4939,8 @@ int btrfs_del_items(struct btrfs_trans_handle *trans, struct btrfs_root *root,
 {
 	struct extent_buffer *leaf;
 	struct btrfs_item *item;
-	int last_off;
-	int dsize = 0;
+	u32 last_off;
+	u32 dsize = 0;
 	int ret = 0;
 	int wret;
 	int i;

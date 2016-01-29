@@ -71,7 +71,7 @@ static unsigned long __initdata node_percpu[MAX_NUMNODES];
  * per-CPU stack and boot info.
  */
 DEFINE_PER_CPU(unsigned long, boot_sp) =
-	(unsigned long)init_stack + THREAD_SIZE;
+	(unsigned long)init_stack + THREAD_SIZE - STACK_TOP_DELTA;
 
 #ifdef CONFIG_SMP
 DEFINE_PER_CPU(unsigned long, boot_pc) = (unsigned long)start_kernel;
@@ -882,7 +882,7 @@ static int __init node_neighbors(int node, int cpu,
 
 static void __init setup_numa_mapping(void)
 {
-	int distance[MAX_NUMNODES][NR_CPUS];
+	u8 distance[MAX_NUMNODES][NR_CPUS];
 	HV_Coord coord;
 	int cpu, node, cpus, i, x, y;
 	int num_nodes = num_online_nodes();
@@ -1139,7 +1139,7 @@ static void __init load_hv_initrd(void)
 
 void __init free_initrd_mem(unsigned long begin, unsigned long end)
 {
-	free_bootmem(__pa(begin), end - begin);
+	free_bootmem_late(__pa(begin), end - begin);
 }
 
 static int __init setup_initrd(char *str)

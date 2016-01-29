@@ -257,12 +257,15 @@ static int lme2510_enable_pid(struct dvb_usb_device *d, u8 index, u16 pid_out)
 	return ret;
 }
 
+/* Convert range from 0x00-0xff to 0x0000-0xffff */
+#define reg_to_16bits(x)	((x) | ((x) << 8))
+
 static void lme2510_update_stats(struct dvb_usb_adapter *adap)
 {
 	struct lme2510_state *st = adap_to_priv(adap);
 	struct dvb_frontend *fe = adap->fe[0];
 	struct dtv_frontend_properties *c;
-	u64 s_tmp = 0, c_tmp = 0;
+	u32 s_tmp = 0, c_tmp = 0;
 
 	if (!fe)
 		return;
@@ -288,32 +291,26 @@ static void lme2510_update_stats(struct dvb_usb_adapter *adap)
 
 	switch (st->tuner_config) {
 	case TUNER_LG:
-		s_tmp = 0xff - st->signal_level;
-		s_tmp |= s_tmp << 8;
-
-		c_tmp = 0xff - st->signal_sn;
-		c_tmp |= c_tmp << 8;
+		s_tmp = reg_to_16bits(0xff - st->signal_level);
+		c_tmp = reg_to_16bits(0xff - st->signal_sn);
 		break;
-	/* fall through */
 	case TUNER_S7395:
 	case TUNER_S0194:
 		s_tmp = 0xffff - (((st->signal_level * 2) << 8) * 5 / 4);
-
-		c_tmp = ((0xff - st->signal_sn - 0xa1) * 3) << 8;
+		c_tmp = reg_to_16bits((0xff - st->signal_sn - 0xa1) * 3);
 		break;
 	case TUNER_RS2000:
-		s_tmp = st->signal_level * 0xffff / 0xff;
-
-		c_tmp = st->signal_sn * 0xffff / 0x7f;
+		s_tmp = reg_to_16bits(st->signal_level);
+		c_tmp = reg_to_16bits(st->signal_sn);
 	}
 
 	c->strength.len = 1;
 	c->strength.stat[0].scale = FE_SCALE_RELATIVE;
-	c->strength.stat[0].uvalue = s_tmp;
+	c->strength.stat[0].uvalue = (u64)s_tmp;
 
 	c->cnr.len = 1;
 	c->cnr.stat[0].scale = FE_SCALE_RELATIVE;
-	c->cnr.stat[0].uvalue = c_tmp;
+	c->cnr.stat[0].uvalue = (u64)c_tmp;
 }
 
 static void lme2510_int_response(struct urb *lme_urb)
@@ -351,15 +348,16 @@ static void lme2510_int_response(struct urb *lme_urb)
 		switch (ibuf[0]) {
 		case 0xaa:
 			debug_data_snipet(1, "INT Remote data snipet", ibuf);
-			if ((ibuf[4] + ibuf[5]) == 0xff) {
-				key = RC_SCANCODE_NECX((ibuf[2] ^ 0xff) << 8 |
-						       (ibuf[3] > 0) ? (ibuf[3] ^ 0xff) : 0,
-						       ibuf[5]);
-				deb_info(1, "INT Key =%08x", key);
-				if (adap_to_d(adap)->rc_dev != NULL)
-					rc_keydown(adap_to_d(adap)->rc_dev,
-						   RC_TYPE_NEC, key, 0);
-			}
+			if (!adap_to_d(adap)->rc_dev)
+				break;
+
+			key = RC_SCANCODE_NEC32(ibuf[2] << 24 |
+						ibuf[3] << 16 |
+						ibuf[4] << 8  |
+						ibuf[5]);
+
+			deb_info(1, "INT Key = 0x%08x", key);
+			rc_keydown(adap_to_d(adap)->rc_dev, RC_TYPE_NEC, key, 0);
 			break;
 		case 0xbb:
 			switch (st->tuner_config) {
@@ -1347,7 +1345,7 @@ module_usb_driver(lme2510_driver);
 
 MODULE_AUTHOR("Malcolm Priestley <tvboxspy@gmail.com>");
 MODULE_DESCRIPTION("LME2510(C) DVB-S USB2.0");
-MODULE_VERSION("2.06");
+MODULE_VERSION("2.07");
 MODULE_LICENSE("GPL");
 MODULE_FIRMWARE(LME2510_C_S7395);
 MODULE_FIRMWARE(LME2510_C_LG);

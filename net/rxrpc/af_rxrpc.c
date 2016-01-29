@@ -67,7 +67,7 @@ static void rxrpc_write_space(struct sock *sk)
 	if (rxrpc_writable(sk)) {
 		struct socket_wq *wq = rcu_dereference(sk->sk_wq);
 
-		if (wq_has_sleeper(wq))
+		if (skwq_has_sleeper(wq))
 			wake_up_interruptible(&wq->wait);
 		sk_wake_async(sk, SOCK_WAKE_SPACE, POLL_OUT);
 	}
@@ -305,7 +305,7 @@ struct rxrpc_call *rxrpc_kernel_begin_call(struct socket *sock,
 
 	if (!key)
 		key = rx->key;
-	if (key && !key->payload.data)
+	if (key && !key->payload.data[0])
 		key = NULL; /* a no-security key */
 
 	bundle = rxrpc_get_bundle(rx, trans, key, service_id, gfp);
@@ -632,7 +632,7 @@ static int rxrpc_create(struct net *net, struct socket *sock, int protocol,
 	sock->ops = &rxrpc_rpc_ops;
 	sock->state = SS_UNCONNECTED;
 
-	sk = sk_alloc(net, PF_RXRPC, GFP_KERNEL, &rxrpc_proto);
+	sk = sk_alloc(net, PF_RXRPC, GFP_KERNEL, &rxrpc_proto, kern);
 	if (!sk)
 		return -ENOMEM;
 

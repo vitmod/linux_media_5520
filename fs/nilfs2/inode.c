@@ -307,31 +307,13 @@ static int nilfs_write_end(struct file *file, struct address_space *mapping,
 static ssize_t
 nilfs_direct_IO(struct kiocb *iocb, struct iov_iter *iter, loff_t offset)
 {
-	struct file *file = iocb->ki_filp;
-	struct address_space *mapping = file->f_mapping;
-	struct inode *inode = file->f_mapping->host;
-	size_t count = iov_iter_count(iter);
-	ssize_t size;
+	struct inode *inode = file_inode(iocb->ki_filp);
 
 	if (iov_iter_rw(iter) == WRITE)
 		return 0;
 
 	/* Needs synchronization with the cleaner */
-	size = blockdev_direct_IO(iocb, inode, iter, offset, nilfs_get_block);
-
-	/*
-	 * In case of error extending write may have instantiated a few
-	 * blocks outside i_size. Trim these off again.
-	 */
-	if (unlikely(iov_iter_rw(iter) == WRITE && size < 0)) {
-		loff_t isize = i_size_read(inode);
-		loff_t end = offset + count;
-
-		if (end > isize)
-			nilfs_write_failed(mapping, end);
-	}
-
-	return size;
+	return blockdev_direct_IO(iocb, inode, iter, offset, nilfs_get_block);
 }
 
 const struct address_space_operations nilfs_aops = {
@@ -374,7 +356,7 @@ struct inode *nilfs_new_inode(struct inode *dir, umode_t mode)
 		goto failed;
 
 	mapping_set_gfp_mask(inode->i_mapping,
-			     mapping_gfp_mask(inode->i_mapping) & ~__GFP_FS);
+			   mapping_gfp_constraint(inode->i_mapping, ~__GFP_FS));
 
 	root = NILFS_I(dir)->i_root;
 	ii = NILFS_I(inode);
@@ -528,6 +510,7 @@ static int __nilfs_read_inode(struct super_block *sb,
 		inode->i_mapping->a_ops = &nilfs_aops;
 	} else if (S_ISLNK(inode->i_mode)) {
 		inode->i_op = &nilfs_symlink_inode_operations;
+		inode_nohighmem(inode);
 		inode->i_mapping->a_ops = &nilfs_aops;
 	} else {
 		inode->i_op = &nilfs_special_inode_operations;
@@ -540,7 +523,7 @@ static int __nilfs_read_inode(struct super_block *sb,
 	up_read(&NILFS_MDT(nilfs->ns_dat)->mi_sem);
 	nilfs_set_inode_flags(inode);
 	mapping_set_gfp_mask(inode->i_mapping,
-			     mapping_gfp_mask(inode->i_mapping) & ~__GFP_FS);
+			   mapping_gfp_constraint(inode->i_mapping, ~__GFP_FS));
 	return 0;
 
  failed_unmap:
@@ -1020,7 +1003,7 @@ int nilfs_fiemap(struct inode *inode, struct fiemap_extent_info *fieinfo,
 	if (ret)
 		return ret;
 
-	mutex_lock(&inode->i_mutex);
+	inode_lock(inode);
 
 	isize = i_size_read(inode);
 
@@ -1130,6 +1113,6 @@ int nilfs_fiemap(struct inode *inode, struct fiemap_extent_info *fieinfo,
 	if (ret == 1)
 		ret = 0;
 
-	mutex_unlock(&inode->i_mutex);
+	inode_unlock(inode);
 	return ret;
 }

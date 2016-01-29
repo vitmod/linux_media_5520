@@ -78,27 +78,40 @@ static int create_srq_user(struct ib_pd *pd, struct mlx5_ib_srq *srq,
 			   struct ib_udata *udata, int buf_size, int *inlen)
 {
 	struct mlx5_ib_dev *dev = to_mdev(pd->device);
-	struct mlx5_ib_create_srq ucmd;
+	struct mlx5_ib_create_srq ucmd = {};
 	size_t ucmdlen;
+	void *xsrqc;
 	int err;
 	int npages;
 	int page_shift;
 	int ncont;
 	u32 offset;
+	u32 uidx = MLX5_IB_DEFAULT_UIDX;
+	int drv_data = udata->inlen - sizeof(struct ib_uverbs_cmd_hdr);
 
-	ucmdlen =
-		(udata->inlen - sizeof(struct ib_uverbs_cmd_hdr) <
-		 sizeof(ucmd)) ? (sizeof(ucmd) -
-				  sizeof(ucmd.reserved)) : sizeof(ucmd);
+	if (drv_data < 0)
+		return -EINVAL;
+
+	ucmdlen = (drv_data < sizeof(ucmd)) ?
+		  drv_data : sizeof(ucmd);
 
 	if (ib_copy_from_udata(&ucmd, udata, ucmdlen)) {
 		mlx5_ib_dbg(dev, "failed copy udata\n");
 		return -EFAULT;
 	}
 
-	if (ucmdlen == sizeof(ucmd) &&
-	    ucmd.reserved != 0)
+	if (ucmd.reserved0 || ucmd.reserved1)
 		return -EINVAL;
+
+	if (drv_data > sizeof(ucmd) &&
+	    !ib_is_udata_cleared(udata, sizeof(ucmd),
+				 drv_data - sizeof(ucmd)))
+		return -EINVAL;
+
+	err = get_srq_user_index(to_mucontext(pd->uobject->context),
+				 &ucmd, udata->inlen, &uidx);
+	if (err)
+		return err;
 
 	srq->wq_sig = !!(ucmd.flags & MLX5_SRQ_FLAG_SIGNATURE);
 
@@ -138,6 +151,12 @@ static int create_srq_user(struct ib_pd *pd, struct mlx5_ib_srq *srq,
 	(*in)->ctx.log_pg_sz = page_shift - MLX5_ADAPTER_PAGE_SHIFT;
 	(*in)->ctx.pgoff_cqn = cpu_to_be32(offset << 26);
 
+	if (MLX5_CAP_GEN(dev->mdev, cqe_version) == MLX5_CQE_VERSION_V1) {
+		xsrqc = MLX5_ADDR_OF(create_xrc_srq_in, *in,
+				     xrc_srq_context_entry);
+		MLX5_SET(xrc_srqc, xsrqc, user_index, uidx);
+	}
+
 	return 0;
 
 err_in:
@@ -158,6 +177,7 @@ static int create_srq_kernel(struct mlx5_ib_dev *dev, struct mlx5_ib_srq *srq,
 	struct mlx5_wqe_srq_next_seg *next;
 	int page_shift;
 	int npages;
+	void *xsrqc;
 
 	err = mlx5_db_alloc(dev->mdev, &srq->db);
 	if (err) {
@@ -165,7 +185,7 @@ static int create_srq_kernel(struct mlx5_ib_dev *dev, struct mlx5_ib_srq *srq,
 		return err;
 	}
 
-	if (mlx5_buf_alloc(dev->mdev, buf_size, PAGE_SIZE * 2, &srq->buf)) {
+	if (mlx5_buf_alloc(dev->mdev, buf_size, &srq->buf)) {
 		mlx5_ib_dbg(dev, "buf alloc failed\n");
 		err = -ENOMEM;
 		goto err_db;
@@ -204,6 +224,13 @@ static int create_srq_kernel(struct mlx5_ib_dev *dev, struct mlx5_ib_srq *srq,
 
 	(*in)->ctx.log_pg_sz = page_shift - MLX5_ADAPTER_PAGE_SHIFT;
 
+	if (MLX5_CAP_GEN(dev->mdev, cqe_version) == MLX5_CQE_VERSION_V1) {
+		xsrqc = MLX5_ADDR_OF(create_xrc_srq_in, *in,
+				     xrc_srq_context_entry);
+		/* 0xffffff means we ask to work with cqe version 0 */
+		MLX5_SET(xrc_srqc, xsrqc, user_index, MLX5_IB_DEFAULT_UIDX);
+	}
+
 	return 0;
 
 err_in:
@@ -236,7 +263,6 @@ struct ib_srq *mlx5_ib_create_srq(struct ib_pd *pd,
 				  struct ib_udata *udata)
 {
 	struct mlx5_ib_dev *dev = to_mdev(pd->device);
-	struct mlx5_general_caps *gen;
 	struct mlx5_ib_srq *srq;
 	int desc_size;
 	int buf_size;
@@ -245,13 +271,13 @@ struct ib_srq *mlx5_ib_create_srq(struct ib_pd *pd,
 	int uninitialized_var(inlen);
 	int is_xrc;
 	u32 flgs, xrcdn;
+	__u32 max_srq_wqes = 1 << MLX5_CAP_GEN(dev->mdev, log_max_srq_sz);
 
-	gen = &dev->mdev->caps.gen;
 	/* Sanity check SRQ size before proceeding */
-	if (init_attr->attr.max_wr >= gen->max_srq_wqes) {
+	if (init_attr->attr.max_wr >= max_srq_wqes) {
 		mlx5_ib_dbg(dev, "max_wr %d, cap %d\n",
 			    init_attr->attr.max_wr,
-			    gen->max_srq_wqes);
+			    max_srq_wqes);
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -303,7 +329,7 @@ struct ib_srq *mlx5_ib_create_srq(struct ib_pd *pd,
 
 	in->ctx.pd = cpu_to_be32(to_mpd(pd)->pdn);
 	in->ctx.db_record = cpu_to_be64(srq->db.dma);
-	err = mlx5_core_create_srq(dev->mdev, &srq->msrq, in, inlen);
+	err = mlx5_core_create_srq(dev->mdev, &srq->msrq, in, inlen, is_xrc);
 	kvfree(in);
 	if (err) {
 		mlx5_ib_dbg(dev, "create SRQ failed, err %d\n", err);

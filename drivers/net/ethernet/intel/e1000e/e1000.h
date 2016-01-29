@@ -1,5 +1,5 @@
 /* Intel PRO/1000 Linux driver
- * Copyright(c) 1999 - 2014 Intel Corporation.
+ * Copyright(c) 1999 - 2015 Intel Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -40,6 +40,7 @@
 #include <linux/ptp_classify.h>
 #include <linux/mii.h>
 #include <linux/mdio.h>
+#include <linux/pm_qos.h>
 #include "hw.h"
 
 struct e1000_info;
@@ -97,6 +98,8 @@ struct e1000_info;
 #define DEFAULT_RADV			8
 #define BURST_RDTR			0x20
 #define BURST_RADV			0x20
+#define PCICFG_DESC_RING_STATUS		0xe4
+#define FLUSH_DESC_REQUIRED		0x100
 
 /* in the case of WTHRESH, it appears at least the 82571/2 hardware
  * writes back 4 descriptors when WTHRESH=5, and 3 descriptors when
@@ -383,6 +386,10 @@ s32 e1000e_get_base_timinca(struct e1000_adapter *adapter, u32 *timinca);
 #define INCVALUE_SHIFT_25MHz	18
 #define INCPERIOD_25MHz		1
 
+#define INCVALUE_24MHz		125
+#define INCVALUE_SHIFT_24MHz	14
+#define INCPERIOD_24MHz		3
+
 /* Another drawback of scaling the incvalue by a large factor is the
  * 64-bit SYSTIM register overflows more quickly.  This is dealt with
  * by simply reading the clock before it overflows.
@@ -473,7 +480,7 @@ extern const char e1000e_driver_version[];
 void e1000e_check_options(struct e1000_adapter *adapter);
 void e1000e_set_ethtool_ops(struct net_device *netdev);
 
-int e1000e_up(struct e1000_adapter *adapter);
+void e1000e_up(struct e1000_adapter *adapter);
 void e1000e_down(struct e1000_adapter *adapter, bool reset);
 void e1000e_reinit_locked(struct e1000_adapter *adapter);
 void e1000e_reset(struct e1000_adapter *adapter);

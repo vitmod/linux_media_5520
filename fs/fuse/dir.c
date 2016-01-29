@@ -944,7 +944,7 @@ int fuse_reverse_inval_entry(struct super_block *sb, u64 parent_nodeid,
 	if (!parent)
 		return -ENOENT;
 
-	mutex_lock(&parent->i_mutex);
+	inode_lock(parent);
 	if (!S_ISDIR(parent->i_mode))
 		goto unlock;
 
@@ -962,7 +962,7 @@ int fuse_reverse_inval_entry(struct super_block *sb, u64 parent_nodeid,
 	fuse_invalidate_entry(entry);
 
 	if (child_nodeid != 0 && d_really_is_positive(entry)) {
-		mutex_lock(&d_inode(entry)->i_mutex);
+		inode_lock(d_inode(entry));
 		if (get_node_id(d_inode(entry)) != child_nodeid) {
 			err = -ENOENT;
 			goto badentry;
@@ -983,7 +983,7 @@ int fuse_reverse_inval_entry(struct super_block *sb, u64 parent_nodeid,
 		clear_nlink(d_inode(entry));
 		err = 0;
  badentry:
-		mutex_unlock(&d_inode(entry)->i_mutex);
+		inode_unlock(d_inode(entry));
 		if (!err)
 			d_delete(entry);
 	} else {
@@ -992,7 +992,7 @@ int fuse_reverse_inval_entry(struct super_block *sb, u64 parent_nodeid,
 	dput(entry);
 
  unlock:
-	mutex_unlock(&parent->i_mutex);
+	inode_unlock(parent);
 	iput(parent);
 	return err;
 }
@@ -1365,15 +1365,19 @@ static int fuse_readdir(struct file *file, struct dir_context *ctx)
 	return err;
 }
 
-static char *read_link(struct dentry *dentry)
+static const char *fuse_get_link(struct dentry *dentry,
+				 struct inode *inode,
+				 struct delayed_call *done)
 {
-	struct inode *inode = d_inode(dentry);
 	struct fuse_conn *fc = get_fuse_conn(inode);
 	FUSE_ARGS(args);
 	char *link;
 	ssize_t ret;
 
-	link = (char *) __get_free_page(GFP_KERNEL);
+	if (!dentry)
+		return ERR_PTR(-ECHILD);
+
+	link = kmalloc(PAGE_SIZE, GFP_KERNEL);
 	if (!link)
 		return ERR_PTR(-ENOMEM);
 
@@ -1385,30 +1389,14 @@ static char *read_link(struct dentry *dentry)
 	args.out.args[0].value = link;
 	ret = fuse_simple_request(fc, &args);
 	if (ret < 0) {
-		free_page((unsigned long) link);
+		kfree(link);
 		link = ERR_PTR(ret);
 	} else {
 		link[ret] = '\0';
+		set_delayed_call(done, kfree_link, link);
 	}
 	fuse_invalidate_atime(inode);
 	return link;
-}
-
-static void free_link(char *link)
-{
-	if (!IS_ERR(link))
-		free_page((unsigned long) link);
-}
-
-static void *fuse_follow_link(struct dentry *dentry, struct nameidata *nd)
-{
-	nd_set_link(nd, read_link(dentry));
-	return NULL;
-}
-
-static void fuse_put_link(struct dentry *dentry, struct nameidata *nd, void *c)
-{
-	free_link(nd_get_link(nd));
 }
 
 static int fuse_dir_open(struct inode *inode, struct file *file)
@@ -1516,7 +1504,7 @@ void fuse_set_nowrite(struct inode *inode)
 	struct fuse_conn *fc = get_fuse_conn(inode);
 	struct fuse_inode *fi = get_fuse_inode(inode);
 
-	BUG_ON(!mutex_is_locked(&inode->i_mutex));
+	BUG_ON(!inode_is_locked(inode));
 
 	spin_lock(&fc->lock);
 	BUG_ON(fi->writectr < 0);
@@ -1925,8 +1913,7 @@ static const struct inode_operations fuse_common_inode_operations = {
 
 static const struct inode_operations fuse_symlink_inode_operations = {
 	.setattr	= fuse_setattr,
-	.follow_link	= fuse_follow_link,
-	.put_link	= fuse_put_link,
+	.get_link	= fuse_get_link,
 	.readlink	= generic_readlink,
 	.getattr	= fuse_getattr,
 	.setxattr	= fuse_setxattr,

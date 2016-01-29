@@ -333,7 +333,7 @@ static int s5k6a3_probe(struct i2c_client *client,
 	sensor->format.height = S5K6A3_DEFAULT_HEIGHT;
 
 	sensor->pad.flags = MEDIA_PAD_FL_SOURCE;
-	ret = media_entity_init(&sd->entity, 1, &sensor->pad, 0);
+	ret = media_entity_pads_init(&sd->entity, 1, &sensor->pad);
 	if (ret < 0)
 		return ret;
 
@@ -363,6 +363,7 @@ static int s5k6a3_remove(struct i2c_client *client)
 static const struct i2c_device_id s5k6a3_ids[] = {
 	{ }
 };
+MODULE_DEVICE_TABLE(i2c, s5k6a3_ids);
 
 #ifdef CONFIG_OF
 static const struct of_device_id s5k6a3_of_match[] = {

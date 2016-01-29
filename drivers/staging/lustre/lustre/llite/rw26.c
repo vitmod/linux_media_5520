@@ -200,12 +200,12 @@ static inline int ll_get_user_pages(int rw, unsigned long user_addr,
 	*max_pages = (user_addr + size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	*max_pages -= user_addr >> PAGE_CACHE_SHIFT;
 
-	OBD_ALLOC_LARGE(*pages, *max_pages * sizeof(**pages));
+	*pages = libcfs_kvzalloc(*max_pages * sizeof(**pages), GFP_NOFS);
 	if (*pages) {
 		result = get_user_pages_fast(user_addr, *max_pages,
 					     (rw == READ), *pages);
 		if (unlikely(result <= 0))
-			OBD_FREE_LARGE(*pages, *max_pages * sizeof(**pages));
+			kvfree(*pages);
 	}
 
 	return result;
@@ -298,7 +298,10 @@ ssize_t ll_direct_rw_pages(const struct lu_env *env, struct cl_io *io,
 		}
 
 		if (likely(do_io)) {
-			cl_2queue_add(queue, clp);
+			/*
+			 * Add a page to the incoming page list of 2-queue.
+			 */
+			cl_page_list_add(&queue->c2_qin, clp);
 
 			/*
 			 * Set page clip to tell transfer formation engine
@@ -400,7 +403,7 @@ static ssize_t ll_direct_IO_26(struct kiocb *iocb, struct iov_iter *iter,
 	 * 1. Need inode mutex to operate transient pages.
 	 */
 	if (iov_iter_rw(iter) == READ)
-		mutex_lock(&inode->i_mutex);
+		inode_lock(inode);
 
 	LASSERT(obj->cob_transient_pages == 0);
 	while (iov_iter_count(iter)) {
@@ -418,6 +421,7 @@ static ssize_t ll_direct_IO_26(struct kiocb *iocb, struct iov_iter *iter,
 		result = iov_iter_get_pages_alloc(iter, &pages, count, &offs);
 		if (likely(result > 0)) {
 			int n = DIV_ROUND_UP(result + offs, PAGE_SIZE);
+
 			result = ll_direct_IO_26_seg(env, io, iov_iter_rw(iter),
 						     inode, file->f_mapping,
 						     result, file_offset, pages,
@@ -450,7 +454,7 @@ static ssize_t ll_direct_IO_26(struct kiocb *iocb, struct iov_iter *iter,
 out:
 	LASSERT(obj->cob_transient_pages == 0);
 	if (iov_iter_rw(iter) == READ)
-		mutex_unlock(&inode->i_mutex);
+		inode_unlock(inode);
 
 	if (tot_bytes > 0) {
 		if (iov_iter_rw(iter) == WRITE) {
@@ -517,7 +521,6 @@ static int ll_migratepage(struct address_space *mapping,
 }
 #endif
 
-#ifndef MS_HAS_NEW_AOPS
 const struct address_space_operations ll_aops = {
 	.readpage	= ll_readpage,
 	.direct_IO      = ll_direct_IO_26,
@@ -532,22 +535,3 @@ const struct address_space_operations ll_aops = {
 	.migratepage    = ll_migratepage,
 #endif
 };
-#else
-const struct address_space_operations_ext ll_aops = {
-	.orig_aops.readpage       = ll_readpage,
-/*	.orig_aops.readpages      = ll_readpages, */
-	.orig_aops.direct_IO      = ll_direct_IO_26,
-	.orig_aops.writepage      = ll_writepage,
-	.orig_aops.writepages     = ll_writepages,
-	.orig_aops.set_page_dirty = ll_set_page_dirty,
-	.orig_aops.prepare_write  = ll_prepare_write,
-	.orig_aops.commit_write   = ll_commit_write,
-	.orig_aops.invalidatepage = ll_invalidatepage,
-	.orig_aops.releasepage    = ll_releasepage,
-#ifdef CONFIG_MIGRATION
-	.orig_aops.migratepage    = ll_migratepage,
-#endif
-	.write_begin    = ll_write_begin,
-	.write_end      = ll_write_end
-};
-#endif
