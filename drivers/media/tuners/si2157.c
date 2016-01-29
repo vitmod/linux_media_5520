@@ -286,6 +286,7 @@ static int si2157_set_params(struct dvb_frontend *fe)
 	case SYS_DVBC_ANNEX_B:
 			delivery_system = 0x10;
 			if_frequency = 4000000;
+			bandwidth = 0x06;
 			break;
 	case SYS_DVBT:
 	case SYS_DVBT2: /* it seems DVB-T and DVB-T2 both are 0x20 here */
