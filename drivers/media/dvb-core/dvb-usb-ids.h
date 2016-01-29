@@ -1,6 +1,6 @@
 /* dvb-usb-ids.h is part of the DVB USB library.
  *
- * Copyright (C) 2004-5 Patrick Boettcher (patrick.boettcher@desy.de) see
+ * Copyright (C) 2004-5 Patrick Boettcher (patrick.boettcher@posteo.de) see
  * dvb-usb-init.c for copyright information.
  *
  * a header file containing define's for the USB device supported by the
@@ -118,6 +118,7 @@
 #define USB_PID_DIBCOM_STK807XP				0x1f90
 #define USB_PID_DIBCOM_STK807XPVR			0x1f98
 #define USB_PID_DIBCOM_STK8096GP                        0x1fa0
+#define USB_PID_DIBCOM_STK8096PVR                       0x1faa
 #define USB_PID_DIBCOM_NIM8096MD                        0x1fa8
 #define USB_PID_DIBCOM_TFE8096P				0x1f9C
 #define USB_PID_DIBCOM_ANCHOR_2135_COLD			0x2131
@@ -255,6 +256,10 @@
 #define USB_PID_TERRATEC_CINERGY_T_EXPRESS		0x0062
 #define USB_PID_TERRATEC_CINERGY_T_XXS			0x0078
 #define USB_PID_TERRATEC_CINERGY_T_XXS_2		0x00ab
+#define USB_PID_TERRATEC_CINERGY_S2_R1			0x00a8
+#define USB_PID_TERRATEC_CINERGY_S2_R2			0x00b0
+#define USB_PID_TERRATEC_CINERGY_S2_R3			0x0102
+#define USB_PID_TERRATEC_CINERGY_S2_R4			0x0105
 #define USB_PID_TERRATEC_H7				0x10b4
 #define USB_PID_TERRATEC_H7_2				0x10a3
 #define USB_PID_TERRATEC_H7_3				0x10a5

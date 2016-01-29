@@ -143,6 +143,7 @@
 #define RCAR_VIN_BT656			(1 << 3)
 
 enum chip_id {
+	RCAR_GEN3,
 	RCAR_GEN2,
 	RCAR_H1,
 	RCAR_M1,
@@ -531,45 +532,13 @@ struct rcar_vin_cam {
  * required
  */
 static int rcar_vin_videobuf_setup(struct vb2_queue *vq,
-				   const void *parg,
 				   unsigned int *count,
 				   unsigned int *num_planes,
 				   unsigned int sizes[], void *alloc_ctxs[])
 {
-	const struct v4l2_format *fmt = parg;
 	struct soc_camera_device *icd = soc_camera_from_vb2q(vq);
 	struct soc_camera_host *ici = to_soc_camera_host(icd->parent);
 	struct rcar_vin_priv *priv = ici->priv;
-
-	if (fmt) {
-		const struct soc_camera_format_xlate *xlate;
-		unsigned int bytes_per_line;
-		int ret;
-
-		if (fmt->fmt.pix.sizeimage < icd->sizeimage)
-			return -EINVAL;
-
-		xlate = soc_camera_xlate_by_fourcc(icd,
-						   fmt->fmt.pix.pixelformat);
-		if (!xlate)
-			return -EINVAL;
-		ret = soc_mbus_bytes_per_line(fmt->fmt.pix.width,
-					      xlate->host_fmt);
-		if (ret < 0)
-			return ret;
-
-		bytes_per_line = max_t(u32, fmt->fmt.pix.bytesperline, ret);
-
-		ret = soc_mbus_image_size(xlate->host_fmt, bytes_per_line,
-					  fmt->fmt.pix.height);
-		if (ret < 0)
-			return ret;
-
-		sizes[0] = max_t(u32, fmt->fmt.pix.sizeimage, ret);
-	} else {
-		/* Called from VIDIOC_REQBUFS or in compatibility mode */
-		sizes[0] = icd->sizeimage;
-	}
 
 	alloc_ctxs[0] = priv->alloc_ctx;
 
@@ -580,13 +549,17 @@ static int rcar_vin_videobuf_setup(struct vb2_queue *vq,
 		*count = 2;
 	priv->vb_count = *count;
 
-	*num_planes = 1;
-
 	/* Number of hardware slots */
 	if (is_continuous_transfer(priv))
 		priv->nr_hw_slots = MAX_BUFFER_NUM;
 	else
 		priv->nr_hw_slots = 1;
+
+	if (*num_planes)
+		return sizes[0] < icd->sizeimage ? -EINVAL : 0;
+
+	sizes[0] = icd->sizeimage;
+	*num_planes = 1;
 
 	dev_dbg(icd->parent, "count=%d, size=%u\n", *count, sizes[0]);
 
@@ -916,7 +889,7 @@ static irqreturn_t rcar_vin_irq(int irq, void *data)
 
 		priv->queue_buf[slot]->field = priv->field;
 		priv->queue_buf[slot]->sequence = priv->sequence++;
-		v4l2_get_timestamp(&priv->queue_buf[slot]->timestamp);
+		priv->queue_buf[slot]->vb2_buf.timestamp = ktime_get_ns();
 		vb2_buffer_done(&priv->queue_buf[slot]->vb2_buf,
 				VB2_BUF_STATE_DONE);
 		priv->queue_buf[slot] = NULL;
@@ -1846,6 +1819,7 @@ static struct soc_camera_host_ops rcar_vin_host_ops = {
 
 #ifdef CONFIG_OF
 static const struct of_device_id rcar_vin_of_table[] = {
+	{ .compatible = "renesas,vin-r8a7795", .data = (void *)RCAR_GEN3 },
 	{ .compatible = "renesas,vin-r8a7794", .data = (void *)RCAR_GEN2 },
 	{ .compatible = "renesas,vin-r8a7793", .data = (void *)RCAR_GEN2 },
 	{ .compatible = "renesas,vin-r8a7791", .data = (void *)RCAR_GEN2 },

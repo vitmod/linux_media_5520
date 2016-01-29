@@ -214,7 +214,7 @@ static irqreturn_t atmel_isi_handle_streaming(struct atmel_isi *isi)
 		struct frame_buffer *buf = isi->active;
 
 		list_del_init(&buf->list);
-		v4l2_get_timestamp(&vbuf->timestamp);
+		vbuf->vb2_buf.timestamp = ktime_get_ns();
 		vbuf->sequence = isi->sequence++;
 		vb2_buffer_done(&vbuf->vb2_buf, VB2_BUF_STATE_DONE);
 	}
@@ -303,7 +303,7 @@ static int atmel_isi_wait_status(struct atmel_isi *isi, int wait_reset)
 /* ------------------------------------------------------------------
 	Videobuf operations
    ------------------------------------------------------------------*/
-static int queue_setup(struct vb2_queue *vq, const void *parg,
+static int queue_setup(struct vb2_queue *vq,
 				unsigned int *nbuffers, unsigned int *nplanes,
 				unsigned int sizes[], void *alloc_ctxs[])
 {
