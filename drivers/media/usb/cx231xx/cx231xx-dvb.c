@@ -39,6 +39,9 @@
 #include "cxd2820r.h"
 #include "si2168.h"
 #include "si2157.h"
+#include "tas2101.h"
+#include "av201x.h"
+#include "tbscxci.h"
 
 MODULE_DESCRIPTION("driver for cx231xx based DVB cards");
 MODULE_AUTHOR("Srinivasa Deevi <srinivasa.deevi@conexant.com>");
@@ -53,25 +56,6 @@ DVB_DEFINE_MOD_OPT_ADAPTER_NR(adapter_nr);
 #define CX231XX_DVB_NUM_BUFS 5
 #define CX231XX_DVB_MAX_PACKETSIZE 564
 #define CX231XX_DVB_MAX_PACKETS 64
-
-struct cx231xx_dvb {
-	struct dvb_frontend *frontend;
-
-	/* feed count management */
-	struct mutex lock;
-	int nfeeds;
-	u8 count;
-
-	/* general boilerplate stuff */
-	struct dvb_adapter adapter;
-	struct dvb_demux demux;
-	struct dmxdev dmxdev;
-	struct dmx_frontend fe_hw;
-	struct dmx_frontend fe_mem;
-	struct dvb_net net;
-	struct i2c_client *i2c_client_demod;
-	struct i2c_client *i2c_client_tuner;
-};
 
 static struct s5h1432_config dvico_s5h1432_config = {
 	.output_mode   = S5H1432_SERIAL_OUTPUT,
@@ -199,6 +183,31 @@ static struct tda18212_config tda18212_config = {
 	.if_dvbc = 5000,
 	.loop_through = 1,
 	.xtout = 1
+};
+
+static struct tas2101_config tbs5990_tas2101_cfg[] = {
+	{
+		.i2c_address   = 0x60,
+		.id            = ID_TAS2101,
+		.reset_demod   = NULL,
+		.lnb_power     = NULL,
+		.init          = {0x10, 0x32, 0x54, 0x76, 0xb8, 0x9a, 0x33},
+		.init2         = 0,
+	},
+	{
+		.i2c_address   = 0x68,
+		.id            = ID_TAS2101,
+		.reset_demod   = NULL,
+		.lnb_power     = NULL,
+		.init          = {0x8a, 0x6b, 0x13, 0x70, 0x45, 0x92, 0x33},
+		.init2         = 0,
+	}
+};
+
+static struct av201x_config tbs5990_av201x_cfg = {
+	.i2c_address = 0x63,
+	.id          = ID_AV2012,
+	.xtal_freq   = 27000,		/* kHz */
 };
 
 static inline void print_err_status(struct cx231xx *dev, int packet, int status)
@@ -1107,6 +1116,31 @@ static int dvb_init(struct cx231xx *dev)
 
 		break;
 	}
+	case CX231XX_BOARD_TBS_5990:
+	{
+		dev->dvb[i]->frontend = dvb_attach(tas2101_attach, &tbs5990_tas2101_cfg[i],
+						demod_i2c);
+
+		if (dev->dvb[i]->frontend == NULL) {
+			dev_err(dev->dev,
+				"Failed to attach demod tas2101 %d\n", i);
+			result = -EINVAL;
+			goto out_free;
+		}
+
+		/* define general-purpose callback pointer */
+		dvb->frontend->callback = cx231xx_tuner_callback;
+
+		/* attach tuner */
+		if (dvb_attach(av201x_attach, dev->dvb[i]->frontend, &tbs5990_av201x_cfg,
+			tas2101_get_i2c_adapter(dev->dvb[i]->frontend, 2)) == NULL) {
+			dvb_frontend_detach(dev->dvb[i]->frontend);
+			result = -ENODEV;
+			goto out_free;
+		}
+	
+		break;
+	}
 	default:
 		dev_err(dev->dev,
 			"%s/2: The frontend of your DVB/ATSC card isn't supported yet\n",
@@ -1122,6 +1156,13 @@ static int dvb_init(struct cx231xx *dev)
 
 	/* register everything */
 	result = register_dvb(dvb, THIS_MODULE, dev, dev->dev);
+
+	/* post init frontend */
+	switch (dev->model) {
+	case CX231XX_BOARD_TBS_5990:
+		tbscxci_init(dev->dvb[i], i);
+		break;
+	}
 
 	if (result < 0)
 		goto out_free;
