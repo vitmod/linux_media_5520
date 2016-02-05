@@ -2676,6 +2676,7 @@ int cx231xx_set_gpio_bit(struct cx231xx *dev, u32 gpio_bit, u32 gpio_val)
 
 	return status;
 }
+EXPORT_SYMBOL_GPL(cx231xx_set_gpio_bit);
 
 int cx231xx_get_gpio_bit(struct cx231xx *dev, u32 gpio_bit, u32 *gpio_val)
 {
@@ -2687,6 +2688,7 @@ int cx231xx_get_gpio_bit(struct cx231xx *dev, u32 gpio_bit, u32 *gpio_val)
 
 	return status;
 }
+EXPORT_SYMBOL_GPL(cx231xx_get_gpio_bit);
 
 /*
 * cx231xx_set_gpio_direction
