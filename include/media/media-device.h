@@ -268,6 +268,10 @@ struct device;
  * struct media_device - Media device
  * @dev:	Parent device
  * @devnode:	Media device node
+ * @driver_name: Optional device driver name. If not set, calls to
+ *		%MEDIA_IOC_DEVICE_INFO will return dev->driver->name.
+ *		This is needed for USB drivers for example, as otherwise
+ *		they'll all appear as if the driver name was "usb".
  * @model:	Device model name
  * @serial:	Device serial number (optional)
  * @bus_info:	Unique and stable device location identifier
@@ -303,6 +307,7 @@ struct media_device {
 	struct media_devnode devnode;
 
 	char model[32];
+	char driver_name[32];
 	char serial[40];
 	char bus_info[32];
 	u32 hw_revision;
@@ -327,6 +332,10 @@ struct media_device {
 	int (*link_notify)(struct media_link *link, u32 flags,
 			   unsigned int notification);
 };
+
+/* We don't need to include pci.h or usb.h here */
+struct pci_dev;
+struct usb_device;
 
 #ifdef CONFIG_MEDIA_CONTROLLER
 
@@ -536,6 +545,39 @@ struct media_device *media_device_find_devres(struct device *dev);
 /* Iterate over all links. */
 #define media_device_for_each_link(link, mdev)			\
 	list_for_each_entry(link, &(mdev)->links, graph_obj.list)
+
+/**
+ * media_device_pci_init() - create and initialize a
+ *	struct &media_device from a PCI device.
+ *
+ * @mdev:	pointer to struct &media_device
+ * @pci_dev:	pointer to struct pci_dev
+ * @name:	media device name. If %NULL, the routine will use the default
+ *		name for the pci device, given by pci_name() macro.
+ */
+void media_device_pci_init(struct media_device *mdev,
+			   struct pci_dev *pci_dev,
+			   const char *name);
+/**
+ * __media_device_usb_init() - create and initialize a
+ *	struct &media_device from a PCI device.
+ *
+ * @mdev:	pointer to struct &media_device
+ * @udev:	pointer to struct usb_device
+ * @board_name:	media device name. If %NULL, the routine will use the usb
+ *		product name, if available.
+ * @driver_name: name of the driver. if %NULL, the routine will use the name
+ *		given by udev->dev->driver->name, with is usually the wrong
+ *		thing to do.
+ *
+ * NOTE: It is better to call media_device_usb_init() instead, as
+ * such macro fills driver_name with %KBUILD_MODNAME.
+ */
+void __media_device_usb_init(struct media_device *mdev,
+			     struct usb_device *udev,
+			     const char *board_name,
+			     const char *driver_name);
+
 #else
 static inline int media_device_register(struct media_device *mdev)
 {
@@ -560,5 +602,25 @@ static inline struct media_device *media_device_find_devres(struct device *dev)
 {
 	return NULL;
 }
+
+static inline void media_device_pci_init(struct media_device *mdev,
+					 struct pci_dev *pci_dev,
+					 char *name)
+{
+	return NULL;
+}
+
+static inline void __media_device_usb_init(struct media_device *mdev,
+					   struct usb_device *udev,
+					   char *board_name,
+					   char *driver_name)
+{
+	return NULL;
+}
+
 #endif /* CONFIG_MEDIA_CONTROLLER */
+
+#define media_device_usb_init(mdev, udev, name) \
+	__media_device_usb_init(mdev, udev, name, KBUILD_MODNAME)
+
 #endif
