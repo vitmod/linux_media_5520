@@ -1063,7 +1063,7 @@ static int dvb_init(struct cx231xx *dev)
 		struct si2168_config si2168_config;
 		struct si2157_config si2157_config;
 
-		demod_i2c = cx231xx_get_i2c_adap(dev, dev->board.demod_i2c_master+i);
+		demod_i2c = cx231xx_get_i2c_adap(dev, dev->board.demod_i2c_master-i*2);
 		/* attach frontend */
 		si2168_config.i2c_adapter = &adapter;
 		si2168_config.fe = &dev->dvb[i]->frontend;
@@ -1119,7 +1119,7 @@ static int dvb_init(struct cx231xx *dev)
 	}
 	case CX231XX_BOARD_TBS_5990:
 	{
-		demod_i2c = cx231xx_get_i2c_adap(dev, dev->board.demod_i2c_master+i);
+		demod_i2c = cx231xx_get_i2c_adap(dev, dev->board.demod_i2c_master+i*2);
 		dev->dvb[i]->frontend = dvb_attach(tas2101_attach, &tbs5990_tas2101_cfg[i],
 						demod_i2c);
 
@@ -1166,16 +1166,16 @@ static int dvb_init(struct cx231xx *dev)
 		break;
 	}
 
+	mutex_unlock(&dev->lock);	
+
 	if (result < 0)
 		goto out_free;
 	}
-
 
 	dev_info(dev->dev, "Successfully loaded cx231xx-dvb\n");
 
 ret:
 	cx231xx_set_mode(dev, CX231XX_SUSPEND);
-	mutex_unlock(&dev->lock);
 	return result;
 
 out_free:
