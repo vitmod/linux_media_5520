@@ -1119,7 +1119,7 @@ static int dvb_init(struct cx231xx *dev)
 	}
 	case CX231XX_BOARD_TBS_5990:
 	{
-		demod_i2c = cx231xx_get_i2c_adap(dev, dev->board.demod_i2c_master+i*2);
+		demod_i2c = cx231xx_get_i2c_adap(dev, dev->board.demod_i2c_master-i*2);
 		dev->dvb[i]->frontend = dvb_attach(tas2101_attach, &tbs5990_tas2101_cfg[i],
 						demod_i2c);
 
