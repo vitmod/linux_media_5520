@@ -2724,6 +2724,7 @@ int cx231xx_set_gpio_direction(struct cx231xx *dev,
 
 	return status;
 }
+EXPORT_SYMBOL_GPL(cx231xx_set_gpio_direction);
 
 /*
 * cx231xx_set_gpio_value
@@ -2768,6 +2769,7 @@ int cx231xx_set_gpio_value(struct cx231xx *dev, int pin_number, int pin_value)
 
 	return status;
 }
+EXPORT_SYMBOL_GPL(cx231xx_set_gpio_value);
 
 /*****************************************************************************
 *                      G P I O I2C related functions                         *
