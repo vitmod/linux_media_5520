@@ -185,21 +185,70 @@ static struct tda18212_config tda18212_config = {
 	.xtout = 1
 };
 
+static void tbs5990_reset_fe(struct dvb_frontend *fe, int reset_pin)
+{
+	struct i2c_adapter *adapter = tas2101_get_i2c_adapter(fe, 0);
+        struct cx231xx_i2c *i2c = i2c_get_adapdata(adapter);
+        struct cx231xx *dev = i2c->dev;
+
+	/* reset frontend, active low */
+	cx231xx_set_gpio_direction(dev, reset_pin, 1);
+	cx231xx_set_gpio_value(dev, reset_pin, 0);
+	msleep(60);
+	cx231xx_set_gpio_value(dev, reset_pin, 1);
+	msleep(120);
+}
+
+static void tbs5990_reset_fe0(struct dvb_frontend *fe)
+{
+	tbs5990_reset_fe(fe, 2);
+}
+
+static void tbs5990_reset_fe1(struct dvb_frontend *fe)
+{
+	tbs5990_reset_fe(fe, 17);
+}
+
+static void tbs5990_lnb_power(struct dvb_frontend *fe,
+	int enpwr_pin, int onoff)
+{
+	struct i2c_adapter *adapter = tas2101_get_i2c_adapter(fe, 0);
+        struct cx231xx_i2c *i2c = i2c_get_adapdata(adapter);
+        struct cx231xx *dev = i2c->dev;
+
+	/* lnb power, active low */
+	cx231xx_set_gpio_direction(dev, enpwr_pin, 1);
+	if (onoff)
+		cx231xx_set_gpio_value(dev, enpwr_pin, 0);
+	else
+		cx231xx_set_gpio_value(dev, enpwr_pin, 1);
+}
+
+static void tbs5990_lnb0_power(struct dvb_frontend *fe, int onoff)
+{
+	tbs5990_lnb_power(fe, 26, onoff);
+}
+
+static void tbs5990_lnb1_power(struct dvb_frontend *fe, int onoff)
+{
+	tbs5990_lnb_power(fe, 22, onoff);
+}
+
 static struct tas2101_config tbs5990_tas2101_cfg[] = {
 	{
 		.i2c_address   = 0x60,
 		.id            = ID_TAS2101,
 		.reset_demod   = NULL,
-		.lnb_power     = NULL,
-		.init          = {0x10, 0x32, 0x54, 0x76, 0xb8, 0x9a, 0x33},
+		.lnb_power     = tbs5990_lnb0_power,
+		.init          = {0x80, 0xAB, 0x47, 0x61, 0x25, 0x93, 0x31},
 		.init2         = 0,
 	},
 	{
 		.i2c_address   = 0x68,
 		.id            = ID_TAS2101,
 		.reset_demod   = NULL,
-		.lnb_power     = NULL,
-		.init          = {0x8a, 0x6b, 0x13, 0x70, 0x45, 0x92, 0x33},
+		.lnb_power     = tbs5990_lnb1_power,
+		.init          = {0xB0, 0xA8, 0x21, 0x53, 0x74, 0x96, 0x31},
 		.init2         = 0,
 	}
 };
