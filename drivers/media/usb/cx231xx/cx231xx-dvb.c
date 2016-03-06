@@ -187,9 +187,7 @@ static struct tda18212_config tda18212_config = {
 
 static void tbs5990_reset_fe(struct dvb_frontend *fe, int reset_pin)
 {
-	struct i2c_adapter *adapter = tas2101_get_i2c_adapter(fe, 0);
-        struct cx231xx_i2c *i2c = i2c_get_adapdata(adapter);
-        struct cx231xx *dev = i2c->dev;
+	struct cx231xx *dev = fe->dvb->priv;
 
 	/* reset frontend, active low */
 	cx231xx_set_gpio_direction(dev, reset_pin, 1);
@@ -212,9 +210,7 @@ static void tbs5990_reset_fe1(struct dvb_frontend *fe)
 static void tbs5990_lnb_power(struct dvb_frontend *fe,
 	int enpwr_pin, int onoff)
 {
-	struct i2c_adapter *adapter = tas2101_get_i2c_adapter(fe, 0);
-        struct cx231xx_i2c *i2c = i2c_get_adapdata(adapter);
-        struct cx231xx *dev = i2c->dev;
+	struct cx231xx *dev = fe->dvb->priv;
 
 	/* lnb power, active low */
 	cx231xx_set_gpio_direction(dev, enpwr_pin, 1);
@@ -244,7 +240,7 @@ static struct tas2101_config tbs5990_tas2101_cfg[] = {
 		.init2         = 0,
 	},
 	{
-		.i2c_address   = 0x68,
+		.i2c_address   = 0x69,
 		.id            = ID_TAS2101,
 		.reset_demod   = NULL,
 		.lnb_power     = tbs5990_lnb1_power,
