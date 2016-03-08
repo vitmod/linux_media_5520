@@ -1175,9 +1175,6 @@ static int dvb_init(struct cx231xx *dev)
 			goto out_free;
 		}
 
-		/* define general-purpose callback pointer */
-		dvb->frontend->callback = cx231xx_tuner_callback;
-
 		/* attach tuner */
 		if (dvb_attach(av201x_attach, dev->dvb[i]->frontend, &tbs5990_av201x_cfg,
 			tas2101_get_i2c_adapter(dev->dvb[i]->frontend, 2)) == NULL) {
@@ -1185,7 +1182,12 @@ static int dvb_init(struct cx231xx *dev)
 			result = -ENODEV;
 			goto out_free;
 		}
-	
+
+		msleep(100);
+
+		/* define general-purpose callback pointer */
+		dvb->frontend->callback = cx231xx_tuner_callback;
+
 		break;
 	}
 	default:
