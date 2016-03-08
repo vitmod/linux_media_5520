@@ -240,7 +240,7 @@ static struct tas2101_config tbs5990_tas2101_cfg[] = {
 		.init2         = 0,
 	},
 	{
-		.i2c_address   = 0x69,
+		.i2c_address   = 0x68,
 		.id            = ID_TAS2101,
 		.reset_demod   = NULL,
 		.lnb_power     = tbs5990_lnb1_power,
@@ -1211,16 +1211,19 @@ static int dvb_init(struct cx231xx *dev)
 		break;
 	}
 
-	mutex_unlock(&dev->lock);	
 
 	if (result < 0)
 		goto out_free;
+
+	mutex_unlock(&dev->lock);
 	}
 
+	mutex_lock(&dev->lock);
 	dev_info(dev->dev, "Successfully loaded cx231xx-dvb\n");
 
 ret:
 	cx231xx_set_mode(dev, CX231XX_SUSPEND);
+	mutex_unlock(&dev->lock);
 	return result;
 
 out_free:
@@ -1239,10 +1242,16 @@ static int dvb_fini(struct cx231xx *dev)
 	}
 
 	for (i = 0; i < dev->board.adap_cnt; i++) {
-	if (dev->dvb[i]) {
-		unregister_dvb(dev->dvb[i]);
-		dev->dvb[i] = NULL;
-	}
+		if (dev->dvb[i]) {
+			switch (dev->model) {
+				case CX231XX_BOARD_TBS_5990:
+					tbscxci_release(dev->dvb[i]);
+					break;
+			}
+
+			unregister_dvb(dev->dvb[i]);
+			dev->dvb[i] = NULL;
+		}
 	}
 
 	return 0;
