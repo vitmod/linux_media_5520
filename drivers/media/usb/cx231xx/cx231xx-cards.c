@@ -944,7 +944,7 @@ struct cx231xx_board cx231xx_boards[] = {
 		.demod_i2c_master = I2C_1_MUX_3,
 		.has_dvb = 1,
 		.adap_cnt = 2,
-		.demod_addr = 0x6c,
+		.demod_addr = 0x64,
 		.norm = V4L2_STD_PAL_M,
 		
 		.input = {{
