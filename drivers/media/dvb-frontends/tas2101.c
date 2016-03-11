@@ -57,20 +57,25 @@ EXPORT_SYMBOL_GPL(tas2101_get_i2c_adapter);
 /* the first value is the starting address */
 static int tas2101_wrm(struct tas2101_priv *priv, u8 *buf, int len)
 {
-	int ret;
+	int ret, i;
+	u8 sbuf[] = { buf[0], buf[1] };
 	struct i2c_msg msg = {
 		.addr = priv->cfg->i2c_address,
-		.flags = 0, .buf = buf, .len = len };
+		.flags = 0, .buf = sbuf, .len = 2 };
 
 	dev_dbg(&priv->i2c->dev, "%s() i2c wrm @0x%02x (len=%d)\n",
 		__func__, buf[0], len);
 
-	ret = i2c_transfer(priv->i2c_demod, &msg, 1);
-	if (ret < 0) {
-		dev_warn(&priv->i2c->dev,
-			"%s: i2c wrm err(%i) @0x%02x (len=%d)\n",
-			KBUILD_MODNAME, ret, buf[0], len);
-		return ret;
+	for (i = 1; i < len; ++i ) {
+		ret = i2c_transfer(priv->i2c_demod, &msg, 1);
+		if (ret < 0) {
+			dev_warn(&priv->i2c->dev,
+				"%s: i2c wrm err(%i) @0x%02x (len=%d)\n",
+				KBUILD_MODNAME, ret, buf[0], len);
+			return ret;
+		}
+		++sbuf[0];
+		sbuf[1] = buf[i+1];
 	}
 	return 0;
 }
