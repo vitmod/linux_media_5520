@@ -2494,17 +2494,10 @@ module_usb_driver(dw2102_driver);
 MODULE_AUTHOR("Igor M. Liplianin (c) liplianin@me.by");
 MODULE_DESCRIPTION("Driver for DVBWorld DVB-S 2101, 2102, DVB-S2 2104,"
 			" DVB-C 3101 USB2.0,"
-<<<<<<< HEAD
-			" TeVii S600, S630, S650, S660, S480, S421, S632"
-			" Prof 1100, 7500 USB2.0,"
-			" Geniatech SU3000, T220, T220A,"
-			" TechnoTrend S2-4600 devices");
-=======
 			" TeVii S421, S480, S482, S600, S630, S632, S650,"
 			" TeVii S660, S662, Prof 1100, 7500 USB2.0,"
-			" Geniatech SU3000, T220,"
+			" Geniatech SU3000, T220, T220A,"
 			" TechnoTrend S2-4600, Terratec Cinergy S2 devices");
->>>>>>> media_tree/master
 MODULE_VERSION("0.1");
 MODULE_LICENSE("GPL");
 MODULE_FIRMWARE(DW2101_FIRMWARE);
