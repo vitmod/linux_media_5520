@@ -2,6 +2,8 @@
  * v4l2-mc.h - Media Controller V4L2 types and prototypes
  *
  * Copyright (C) 2016 Mauro Carvalho Chehab <mchehab@osg.samsung.com>
+ * Copyright (C) 2006-2010 Nokia Corporation
+ * Copyright (c) 2016 Intel Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +20,8 @@
 #define _V4L2_MC_H
 
 #include <media/media-device.h>
+#include <media/v4l2-dev.h>
+#include <linux/types.h>
 
 /**
  * enum tuner_pad_index - tuner pad index for MEDIA_ENT_F_TUNER
@@ -86,12 +90,14 @@ enum if_aud_dec_pad_index {
  * @DEMOD_PAD_IF_INPUT:	IF input sink pad.
  * @DEMOD_PAD_VID_OUT:	Video output source pad.
  * @DEMOD_PAD_VBI_OUT:	Vertical Blank Interface (VBI) output source pad.
+ * @DEMOD_PAD_AUDIO_OUT: Audio output source pad.
  * @DEMOD_NUM_PADS:	Maximum number of output pads.
  */
 enum demod_pad_index {
 	DEMOD_PAD_IF_INPUT,
 	DEMOD_PAD_VID_OUT,
 	DEMOD_PAD_VBI_OUT,
+	DEMOD_PAD_AUDIO_OUT,
 	DEMOD_NUM_PADS
 };
 
@@ -116,11 +122,122 @@ struct usb_device;
  */
 int v4l2_mc_create_media_graph(struct media_device *mdev);
 
-#else
+/**
+ * v4l_enable_media_source() -	Hold media source for exclusive use
+ *				if free
+ *
+ * @vdev:	pointer to struct video_device
+ *
+ * This interface calls enable_source handler to determine if
+ * media source is free for use. The enable_source handler is
+ * responsible for checking is the media source is free and
+ * start a pipeline between the media source and the media
+ * entity associated with the video device. This interface
+ * should be called from v4l2-core and dvb-core interfaces
+ * that change the source configuration.
+ *
+ * Return: returns zero on success or a negative error code.
+ */
+int v4l_enable_media_source(struct video_device *vdev);
+
+/**
+ * v4l_disable_media_source() -	Release media source
+ *
+ * @vdev:	pointer to struct video_device
+ *
+ * This interface calls disable_source handler to release
+ * the media source. The disable_source handler stops the
+ * active media pipeline between the media source and the
+ * media entity associated with the video device.
+ *
+ * Return: returns zero on success or a negative error code.
+ */
+void v4l_disable_media_source(struct video_device *vdev);
+
+/*
+ * v4l_vb2q_enable_media_tuner -  Hold media source for exclusive use
+ *				  if free.
+ * @q - pointer to struct vb2_queue
+ *
+ * Wrapper for v4l_enable_media_source(). This function should
+ * be called from v4l2-core to enable the media source with
+ * pointer to struct vb2_queue as the input argument. Some
+ * v4l2-core interfaces don't have access to video device and
+ * this interface finds the struct video_device for the q and
+ * calls v4l_enable_media_source().
+ */
+int v4l_vb2q_enable_media_source(struct vb2_queue *q);
+
+
+/**
+ * v4l2_pipeline_pm_use - Update the use count of an entity
+ * @entity: The entity
+ * @use: Use (1) or stop using (0) the entity
+ *
+ * Update the use count of all entities in the pipeline and power entities on or
+ * off accordingly.
+ *
+ * This function is intended to be called in video node open (use ==
+ * 1) and release (use == 0). It uses struct media_entity.use_count to
+ * track the power status. The use of this function should be paired
+ * with v4l2_pipeline_link_notify().
+ *
+ * Return 0 on success or a negative error code on failure. Powering entities
+ * off is assumed to never fail. No failure can occur when the use parameter is
+ * set to 0.
+ */
+int v4l2_pipeline_pm_use(struct media_entity *entity, int use);
+
+
+/**
+ * v4l2_pipeline_link_notify - Link management notification callback
+ * @link: The link
+ * @flags: New link flags that will be applied
+ * @notification: The link's state change notification type (MEDIA_DEV_NOTIFY_*)
+ *
+ * React to link management on powered pipelines by updating the use count of
+ * all entities in the source and sink sides of the link. Entities are powered
+ * on or off accordingly. The use of this function should be paired
+ * with v4l2_pipeline_pm_use().
+ *
+ * Return 0 on success or a negative error code on failure. Powering entities
+ * off is assumed to never fail. This function will not fail for disconnection
+ * events.
+ */
+int v4l2_pipeline_link_notify(struct media_link *link, u32 flags,
+			      unsigned int notification);
+
+#else /* CONFIG_MEDIA_CONTROLLER */
+
 static inline int v4l2_mc_create_media_graph(struct media_device *mdev)
 {
 	return 0;
 }
 
-#endif
-#endif
+static inline int v4l_enable_media_source(struct video_device *vdev)
+{
+	return 0;
+}
+
+static inline void v4l_disable_media_source(struct video_device *vdev)
+{
+}
+
+static inline int v4l_vb2q_enable_media_source(struct vb2_queue *q)
+{
+	return 0;
+}
+
+static inline int v4l2_pipeline_pm_use(struct media_entity *entity, int use)
+{
+	return 0;
+}
+
+static inline int v4l2_pipeline_link_notify(struct media_link *link, u32 flags,
+					    unsigned int notification)
+{
+	return 0;
+}
+
+#endif /* CONFIG_MEDIA_CONTROLLER */
+#endif /* _V4L2_MC_H */
