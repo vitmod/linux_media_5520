@@ -641,6 +641,8 @@ static int register_dvb(struct cx231xx_dvb *dvb,
 
 	return 0;
 
+fail_create_graph:
+	dvb_net_release(&dvb->net);
 fail_fe_conn:
 	dvb->demux.dmx.remove_frontend(&dvb->demux.dmx, &dvb->fe_mem);
 fail_fe_mem:
@@ -1133,6 +1135,7 @@ static int dvb_init(struct cx231xx *dev)
 	/* register everything */
 	result = register_dvb(dvb, THIS_MODULE, dev, dev->dev);
 
+	mutex_unlock(&dev->lock);
 	if (result < 0)
 		goto out_free;
 	}
