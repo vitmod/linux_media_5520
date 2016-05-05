@@ -125,3 +125,4 @@ obj-$(CONFIG_DVB_TC90522) += tc90522.o
 obj-$(CONFIG_DVB_TAS2101) += tas2101.o
 obj-$(CONFIG_DVB_HORUS3A) += horus3a.o
 obj-$(CONFIG_DVB_ASCOT2E) += ascot2e.o
+obj-$(CONFIG_DVB_AVL6882) += avl6882.o
