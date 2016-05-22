@@ -3536,11 +3536,15 @@ static enum dvbfe_search stv090x_search(struct dvb_frontend *fe)
 	return DVBFE_ALGO_SEARCH_ERROR;
 }
 
+static int stv090x_read_signal_strength(struct dvb_frontend *fe, u16 *strength);
+static int stv090x_read_cnr(struct dvb_frontend *fe, u16 *cnr);
+
 static int stv090x_read_status(struct dvb_frontend *fe, enum fe_status *status)
 {
 	struct stv090x_state *state = fe->demodulator_priv;
 	u32 reg, dstatus;
 	u8 search_state;
+	u16 val;
 
 	*status = 0;
 
@@ -3584,6 +3588,11 @@ static int stv090x_read_status(struct dvb_frontend *fe, enum fe_status *status)
 		}
 		break;
 	}
+
+	stv090x_read_signal_strength(fe, &val);
+
+	if (*status & FE_HAS_LOCK)
+		stv090x_read_cnr(fe, &val);
 
 	if (state->config->set_lock_led)
 		state->config->set_lock_led(fe, *status & FE_HAS_LOCK);
@@ -3681,6 +3690,7 @@ static int stv090x_table_lookup(const struct stv090x_tab *tab, int max, int val)
 static int stv090x_read_signal_strength(struct dvb_frontend *fe, u16 *strength)
 {
 	struct stv090x_state *state = fe->demodulator_priv;
+	struct dtv_frontend_properties *p = &fe->dtv_property_cache;
 	u32 reg;
 	s32 agc_0, agc_1, agc;
 	s32 str;
@@ -3697,6 +3707,11 @@ static int stv090x_read_signal_strength(struct dvb_frontend *fe, u16 *strength)
 		str = 0;
 	else if (agc < stv090x_rf_tab[ARRAY_SIZE(stv090x_rf_tab) - 1].read)
 		str = -100;
+
+	p->strength.len = 1;
+	p->strength.stat[0].scale = FE_SCALE_DECIBEL;
+	p->strength.stat[0].svalue = str * 1000;
+
 	*strength = (str + 100) * 0xFFFF / 100;
 
 	return 0;
@@ -3705,12 +3720,10 @@ static int stv090x_read_signal_strength(struct dvb_frontend *fe, u16 *strength)
 static int stv090x_read_cnr(struct dvb_frontend *fe, u16 *cnr)
 {
 	struct stv090x_state *state = fe->demodulator_priv;
+	struct dtv_frontend_properties *p = &fe->dtv_property_cache;
 	u32 reg_0, reg_1, reg, i;
-	s32 val_0, val_1, val = 0;
+	s32 val_0, val_1, val = 0, snr = 0;
 	u8 lock_f;
-	s32 div;
-	u32 last;
-	s32 snr;
 
 	switch (state->delsys) {
 	case STV090x_DVBS2:
@@ -3760,6 +3773,10 @@ static int stv090x_read_cnr(struct dvb_frontend *fe, u16 *cnr)
 	default:
 		break;
 	}
+
+	p->cnr.len = 1;
+	p->cnr.stat[0].scale = FE_SCALE_DECIBEL;
+	p->cnr.stat[0].svalue = 100 * snr;
 
 	return 0;
 }
