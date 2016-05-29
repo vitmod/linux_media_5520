@@ -2461,6 +2461,7 @@ static int saa716x_tbs6983_frontend_attach(struct saa716x_adapter *adapter, int 
 	dprintk(SAA716x_NOTICE, 1, "init complete");
 
 	adapter->fe->ops.set_voltage = saa716x_tbs6983_set_voltage;
+	saa716x_gpio_write(saa716x, count ? 2  : 3, 1); /* LNB power off */
 
 	dprintk(SAA716x_NOTICE, 1, "Done!");
 	return 0;
