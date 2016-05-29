@@ -2370,19 +2370,10 @@ static struct stv0910_cfg tbs6983_stv0910_config = {
 	.dual_tuner = 1,
 };
 
-static struct stv6120_config tbs6983_stv6120_0_config = {
+static struct stv6120_config tbs6983_stv6120_config = {
 	.addr			= 0x60,
 	.refclk			= 30000000,
 	.clk_div		= 2,
-	.tuner			= 1,
-	.bbgain			= 6,
-};
-
-static struct stv6120_config tbs6983_stv6120_1_config = {
-	.addr			= 0x60,
-	.refclk			= 30000000,
-	.clk_div		= 2,
-	.tuner			= 0,
 	.bbgain			= 6,
 };
 
@@ -2400,17 +2391,14 @@ static int saa716x_tbs6983_set_voltage(struct dvb_frontend *fe, enum fe_sec_volt
 
 	switch (voltage) {
 	case SEC_VOLTAGE_13:
-		dprintk(SAA716x_INFO, 1, "Adapter: %d, Polarization=[13V]", adapter->count);
 		saa716x_gpio_write(saa716x, adapter_gpio_0, 0);
 		saa716x_gpio_write(saa716x, adapter_gpio_1, 0);
 		break;
 	case SEC_VOLTAGE_18:
-		dprintk(SAA716x_INFO, 1, "Adapter: %d, Polarization=[18V]", adapter->count);
 		saa716x_gpio_write(saa716x, adapter_gpio_0, 1);
 		saa716x_gpio_write(saa716x, adapter_gpio_1, 0);
 		break;
 	case SEC_VOLTAGE_OFF:
-		dprintk(SAA716x_INFO, 1, "Adapter: %d, Polarization=[OFF]", adapter->count);
 		saa716x_gpio_write(saa716x, adapter_gpio_0, 1);
 		saa716x_gpio_write(saa716x, adapter_gpio_1, 1);
 		break;
@@ -2440,7 +2428,7 @@ static int saa716x_tbs6983_frontend_attach(struct saa716x_adapter *adapter, int 
 	adapter->fe = dvb_attach(stv0910_attach,
 				 &i2c->i2c_adapter,
 				 &tbs6983_stv0910_config,
-				 count);
+				 count & 1);
 
 	if (adapter->fe == NULL) {
 		goto exit;
@@ -2448,20 +2436,17 @@ static int saa716x_tbs6983_frontend_attach(struct saa716x_adapter *adapter, int 
 
 	dprintk(SAA716x_NOTICE, 1, "found STV0910");
 
-	dvb_attach(stv6120_attach,
-		    adapter->fe,
-		    count ? &tbs6983_stv6120_1_config : &tbs6983_stv6120_0_config,
+	dvb_attach(stv6120_attach, adapter->fe,
+		    &tbs6983_stv6120_config, count & 1 ? 0 : 1,
 		    &i2c->i2c_adapter);
 
 	dprintk(SAA716x_NOTICE, 1, "found STV6120");
 
-	dprintk(SAA716x_NOTICE, 1, "init start");
 	if (adapter->fe->ops.init)
 		adapter->fe->ops.init(adapter->fe);
-	dprintk(SAA716x_NOTICE, 1, "init complete");
 
 	adapter->fe->ops.set_voltage = saa716x_tbs6983_set_voltage;
-	saa716x_gpio_write(saa716x, count ? 2  : 3, 1); /* LNB power off */
+	saa716x_gpio_write(saa716x, count ? 2 : 3, 1); /* LNB power off */
 
 	dprintk(SAA716x_NOTICE, 1, "Done!");
 	return 0;

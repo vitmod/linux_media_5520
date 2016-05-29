@@ -13,7 +13,7 @@
  */
 
 
-#define TBSECP3_GPIO_PIN(_bank, _pin)	(((_bank) << 5) + _pin)
+#define TBSECP3_GPIO_PIN(_bank, _pin)	(((3 - _bank) << 5) + _pin)
 
 
 #define TBS_GPIO_BASE		0x0000

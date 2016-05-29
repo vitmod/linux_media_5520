@@ -100,11 +100,19 @@ struct tbs_cfg_info tbs_ecp3_boards[] = {
 				.i2c_master_nr = 1,
 				.gpio.demod_reset_lvl = TBSECP3_GPIODEF_LOW,
 				.gpio.demod_reset_pin = TBSECP3_GPIO_PIN(3, 0),
+				.gpio.voltage_1318_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_1318_pin = TBSECP3_GPIO_PIN(3, 1),
+				.gpio.voltage_onoff_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_onoff_pin = TBSECP3_GPIO_PIN(3, 2),
 			}, 
 			{
 				/* adapter 1 */
 				.ts_in = 2,
 				.i2c_master_nr = 1,
+				.gpio.voltage_1318_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_1318_pin = TBSECP3_GPIO_PIN(2, 1),
+				.gpio.voltage_onoff_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_onoff_pin = TBSECP3_GPIO_PIN(2, 2),
 			},
 		}
 	},
@@ -164,11 +172,19 @@ struct tbs_cfg_info tbs_ecp3_boards[] = {
 				.i2c_master_nr = 0,
 				.gpio.demod_reset_lvl = TBSECP3_GPIODEF_LOW,
 				.gpio.demod_reset_pin = TBSECP3_GPIO_PIN(1, 0),
+				.gpio.voltage_1318_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_1318_pin = TBSECP3_GPIO_PIN(1, 1),
+				.gpio.voltage_onoff_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_onoff_pin = TBSECP3_GPIO_PIN(1, 2),
 			}, 
 			{
 				/* adapter 1 */
 				.ts_in = 0,
 				.i2c_master_nr = 0,
+				.gpio.voltage_1318_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_1318_pin = TBSECP3_GPIO_PIN(0, 1),
+				.gpio.voltage_onoff_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_onoff_pin = TBSECP3_GPIO_PIN(0, 2),
 			},
 			{
 				/* adapter 2 */
@@ -176,11 +192,19 @@ struct tbs_cfg_info tbs_ecp3_boards[] = {
 				.i2c_master_nr = 1,
 				.gpio.demod_reset_lvl = TBSECP3_GPIODEF_LOW,
 				.gpio.demod_reset_pin = TBSECP3_GPIO_PIN(3, 0),
+				.gpio.voltage_1318_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_1318_pin = TBSECP3_GPIO_PIN(3, 1),
+				.gpio.voltage_onoff_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_onoff_pin = TBSECP3_GPIO_PIN(3, 2),
 			}, 
 			{
 				/* adapter 3 */
 				.ts_in = 2,
 				.i2c_master_nr = 1,
+				.gpio.voltage_1318_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_1318_pin = TBSECP3_GPIO_PIN(2, 1),
+				.gpio.voltage_onoff_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_onoff_pin = TBSECP3_GPIO_PIN(2, 2),
 			},
 		}
 	},
@@ -199,11 +223,19 @@ struct tbs_cfg_info tbs_ecp3_boards[] = {
 				.i2c_master_nr = 0,
 				.gpio.demod_reset_lvl = TBSECP3_GPIODEF_LOW,
 				.gpio.demod_reset_pin = TBSECP3_GPIO_PIN(1, 0),
+				.gpio.voltage_1318_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_1318_pin = TBSECP3_GPIO_PIN(1, 1),
+				.gpio.voltage_onoff_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_onoff_pin = TBSECP3_GPIO_PIN(1, 2),
 			}, 
 			{
 				/* adapter 1 */
 				.ts_in = 0,
 				.i2c_master_nr = 0,
+				.gpio.voltage_1318_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_1318_pin = TBSECP3_GPIO_PIN(0, 1),
+				.gpio.voltage_onoff_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_onoff_pin = TBSECP3_GPIO_PIN(0, 2),
 			},
 			{
 				/* adapter 2 */
@@ -211,11 +243,19 @@ struct tbs_cfg_info tbs_ecp3_boards[] = {
 				.i2c_master_nr = 1,
 				.gpio.demod_reset_lvl = TBSECP3_GPIODEF_LOW,
 				.gpio.demod_reset_pin = TBSECP3_GPIO_PIN(3, 0),
+				.gpio.voltage_1318_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_1318_pin = TBSECP3_GPIO_PIN(3, 1),
+				.gpio.voltage_onoff_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_onoff_pin = TBSECP3_GPIO_PIN(3, 2),
 			}, 
 			{
 				/* adapter 3 */
 				.ts_in = 2,
 				.i2c_master_nr = 1,
+				.gpio.voltage_1318_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_1318_pin = TBSECP3_GPIO_PIN(2, 1),
+				.gpio.voltage_onoff_lvl = TBSECP3_GPIODEF_LOW,
+				.gpio.voltage_onoff_pin = TBSECP3_GPIO_PIN(2, 2),
 			},
 		}
 	},
