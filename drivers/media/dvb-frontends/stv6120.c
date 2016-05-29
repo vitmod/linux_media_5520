@@ -424,6 +424,12 @@ static int stv6120_set_frequency(struct dvb_frontend *fe, u32 frequency)
 	STV6120_WRITE_FIELD(state, F_L, (F & 0x7F));
 	STV6120_WRITE_FIELD(state, CALVCOSTRT, 1); /* VCO Auto Calibration */
 
+	i = 0;
+	while((i < 10) && (STV6120_READ_FIELD(state, CALVCOSTRT) != 0)) {
+		msleep(10); /* wait for VCO auto calibration */
+		i++;
+	}
+	
 	for (i = 0; !STV6120_READ_FIELD(state, LOCK); i++) {
 		if (i > 10) {
 			pr_err("%s: VCO Lock Failed...\n", __func__);
