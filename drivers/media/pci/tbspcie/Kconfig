@@ -1,0 +1,23 @@
+config DVB_TBSPCIE
+	tristate "TBS PCIe cards (ECP3 FPGA based)"
+	depends on DVB_CORE && PCI && I2C
+	select I2C_ALGOBIT
+	select DVB_TAS2101 if MEDIA_SUBDRV_AUTOSELECT
+	select MEDIA_TUNER_AV201X if MEDIA_SUBDRV_AUTOSELECT
+	select DVB_STV0910 if MEDIA_SUBDRV_AUTOSELECT
+	select MEDIA_TUNER_STV6120 if MEDIA_SUBDRV_AUTOSELECT
+	select DVB_SI2168 if MEDIA_SUBDRV_AUTOSELECT
+	select MEDIA_TUNER_SI2157 if MEDIA_SUBDRV_AUTOSELECT
+	select DVB_MXL5XX if MEDIA_SUBDRV_AUTOSELECT
+	depends on RC_CORE
+	help
+	  Support for cards with TBS ECP3 FPGA based PCIe bridge:
+	  - TBS6205
+	  - TBS6902
+	  - TBS6903
+	  - TBS6904
+	  - TBS6905/8
+	  - TBS6909
+
+	  Say Y or M if you own such a device and want to use it.
+	  If unsure say N.
