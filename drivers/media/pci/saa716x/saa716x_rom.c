@@ -30,7 +30,7 @@ static int eeprom_read_bytes(struct saa716x_dev *saa716x, u16 reg, u16 len, u8 *
 	return ret;
 }
 
-static int saa716x_read_rombytes(struct saa716x_dev *saa716x, u16 reg, u16 len, u8 *val)
+int saa716x_read_rombytes(struct saa716x_dev *saa716x, u16 reg, u16 len, u8 *val)
 {
 	struct saa716x_i2c *i2c		= saa716x->i2c;
 	struct i2c_adapter *adapter	= &i2c[SAA716x_I2C_BUS_B].i2c_adapter;
@@ -89,6 +89,8 @@ static int saa716x_read_rombytes(struct saa716x_dev *saa716x, u16 reg, u16 len, 
 
 	return 0;
 }
+
+EXPORT_SYMBOL_GPL(saa716x_read_rombytes);
 
 static int saa716x_get_offset(struct saa716x_dev *saa716x, u8 *buf, u32 *offset)
 {
