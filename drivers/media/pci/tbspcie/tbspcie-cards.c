@@ -27,6 +27,7 @@ struct tbs_cfg_info tbs_ecp3_boards[] = {
 			{ .nr = 2 },
 			{ .nr = 3 }
 		},
+		.i2c_eeprom_nr = 2,
 		/* ts ports */
 		.adapters	= 4,
 		.adap_config	= {
@@ -67,6 +68,7 @@ struct tbs_cfg_info tbs_ecp3_boards[] = {
 			{ .nr = 2 },
 			{ .nr = 3 }
 		},
+		.i2c_eeprom_nr = 0,
 		.adapters		= 2,
 		.adap_config		= {
 			{
@@ -92,6 +94,7 @@ struct tbs_cfg_info tbs_ecp3_boards[] = {
 			{ .nr = 2 },
 			{ .nr = 3 }
 		},
+		.i2c_eeprom_nr = 0,
 		.adapters		= 2,
 		.adap_config		= {
 			{
@@ -125,6 +128,7 @@ struct tbs_cfg_info tbs_ecp3_boards[] = {
 			{ .nr = 2 },
 			{ .nr = 3 }
 		},
+		.i2c_eeprom_nr = 2,
 		.adapters		= 4,
 		.adap_config		= {
 			{
@@ -164,6 +168,7 @@ struct tbs_cfg_info tbs_ecp3_boards[] = {
 			{ .nr = 1 },
 			{ .nr = 3 }
 		},
+		.i2c_eeprom_nr = 0,
 		.adapters		= 4,
 		.adap_config		= {
 			{
@@ -215,6 +220,7 @@ struct tbs_cfg_info tbs_ecp3_boards[] = {
 			{ .nr = 1 },
 			{ .nr = 3 }
 		},
+		.i2c_eeprom_nr = 0,
 		.adapters		= 4,
 		.adap_config		= {
 			{
@@ -265,6 +271,7 @@ struct tbs_cfg_info tbs_ecp3_boards[] = {
 		.i2c_config		= {
 			{ .nr = 3, .mode = 39 },
 		},
+		.i2c_eeprom_nr = 0,
 		.adapters		= 8,
 		.adap_config		= {
 			{

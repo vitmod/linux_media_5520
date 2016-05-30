@@ -90,7 +90,6 @@ struct tbs_adap_config {
 	u8		i2c_master_nr;
 	u32		i2c_speed;
 
-
 	struct gpio_cfg gpio;
 };
 
@@ -104,8 +103,7 @@ struct tbs_cfg_info {
 
 	int i2c_masters;
 	struct tbs_i2c_info i2c_config[4];
-
-	//int (*frontend_attach)(struct tbs_adapter *adapter, int type);
+	u8  i2c_eeprom_nr;
 
 	int adapters;
 	struct tbs_adap_config adap_config[8];
@@ -171,6 +169,7 @@ struct tbs_dev {
 
 	/* i2c */
 	struct tbs_i2c		i2c_bus[TBSECP3_MAX_I2C_BUS];
+	struct tbs_i2c		*i2c;
 
 	bool msi;
 

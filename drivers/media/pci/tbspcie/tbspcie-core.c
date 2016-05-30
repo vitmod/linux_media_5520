@@ -104,6 +104,8 @@ static int tbs_i2c_init(struct tbs_dev *dev)
 			tbs_i2c_unregister(&dev->i2c_bus[i]);
 		} while (i-- > 0);
 	}
+	else
+		dev->i2c = &dev->i2c_bus[dev->info->i2c_eeprom_nr];
 
 	return ret;
 }
@@ -529,11 +531,38 @@ static void tbsecp3_remove_i2c_clients(struct tbs_adapter *adapter)
 	}
 }
 
+static int tbsecp3_mac(struct i2c_adapter *i2c_adap, u8 count, u8 *mac)
+{
+	int ret;
+	u8 b[6];
+
+	struct i2c_msg msg[] = {
+		{ .addr = 0x50, .flags = 0,
+			.buf = b, .len = 1 },
+		{ .addr = 0x50, .flags = I2C_M_RD,
+			.buf = b, .len = 6 }
+	};
+
+	b[0] = 0xa0 + 0x10*count;
+
+	ret = i2c_transfer(i2c_adap, msg, 2);
+
+	if (ret != 2) {
+		printk("TBS_PCIE read MAC failed\n");
+		return -1;
+	}
+
+	memcpy(mac, b, 6);
+
+	return 0;
+};
+
 static int tbsecp3_frontend_attach(struct tbs_adapter *adapter)
 {
 	struct tbs_dev *dev = adapter->dev;
 	struct pci_dev *pci = dev->pci_dev;
 	struct gpio_cfg *cfg = &adapter->cfg->gpio;
+	u8 mac[6];
 
 	struct si2168_config si2168_config;
 	struct si2157_config si2157_config;
@@ -543,7 +572,6 @@ static int tbsecp3_frontend_attach(struct tbs_adapter *adapter)
 	struct i2c_board_info info;
 	struct i2c_adapter *i2c = &adapter->i2c->i2c_adap;
 	struct i2c_client *client_demod, *client_tuner;
-
 
 	adapter->fe = NULL;
 	adapter->i2c_client_demod = NULL;
@@ -596,6 +624,13 @@ static int tbsecp3_frontend_attach(struct tbs_adapter *adapter)
 		}
 		adapter->i2c_client_tuner = client_tuner;
 
+		if (!tbsecp3_mac(&dev->i2c->i2c_adap,0,mac)) {
+			mac[5] += adapter->count;
+			memcpy(adapter->dvb_adapter.proposed_mac, mac, 6);
+			dev_notice(&dev->pci_dev->dev, "%s MAC[%d]=%pM\n", dev->info->name,
+				   adapter->count, adapter->dvb_adapter.proposed_mac);
+		}
+
 		break;
 	case 0x6903:
 	case 0x6905:
@@ -607,7 +642,6 @@ static int tbsecp3_frontend_attach(struct tbs_adapter *adapter)
 
 		if (dvb_attach(stv6120_attach, adapter->fe, &tbs_stv6120_config,
 				adapter->count & 1 ? 0 : 1, i2c) == NULL) {
-			pr_err("No STV6120 found !\n");
 			dvb_frontend_detach(adapter->fe);
 			adapter->fe = NULL;
 			dev_err(&dev->pci_dev->dev,
@@ -622,6 +656,13 @@ static int tbsecp3_frontend_attach(struct tbs_adapter *adapter)
 		adapter->fe->ops.set_voltage =  tbsecp3_set_voltage;
 		if (cfg->voltage_onoff_lvl != TBSECP3_GPIODEF_NONE)
 			tbsecp3_gpio_set_pin(dev, cfg->voltage_onoff_pin, cfg->voltage_onoff_lvl == TBSECP3_GPIODEF_LOW ? 1 : 0);
+		
+		if (!tbsecp3_mac(&dev->i2c->i2c_adap,0,mac)) {
+			mac[5] += adapter->count;
+			memcpy(adapter->dvb_adapter.proposed_mac, mac, 6);
+			dev_notice(&dev->pci_dev->dev, "%s MAC[%d]=%pM\n", dev->info->name,
+				   adapter->count, adapter->dvb_adapter.proposed_mac);
+		}
 
 		break;
 	case 0x6902:
@@ -669,6 +710,13 @@ static int tbsecp3_frontend_attach(struct tbs_adapter *adapter)
 		}
 		adapter->i2c_client_tuner = client_tuner;
 #endif
+		if (!tbsecp3_mac(&dev->i2c->i2c_adap,0,mac)) {
+			mac[5] += adapter->count;
+			memcpy(adapter->dvb_adapter.proposed_mac, mac, 6);
+			dev_notice(&dev->pci_dev->dev, "%s MAC[%d]=%pM\n", dev->info->name,
+				   adapter->count, adapter->dvb_adapter.proposed_mac);
+		}
+
 		break;
 	case 0x6909:
 /*
@@ -692,6 +740,13 @@ static int tbsecp3_frontend_attach(struct tbs_adapter *adapter)
 
 		adapter->fe->ops.diseqc_send_master_cmd = max_send_master_cmd;
 		adapter->fe->ops.diseqc_send_burst = max_send_burst;
+
+		if (!tbsecp3_mac(&dev->i2c->i2c_adap,0,mac)) {
+			mac[5] += adapter->count;
+			memcpy(adapter->dvb_adapter.proposed_mac, mac, 6);
+			dev_notice(&dev->pci_dev->dev, "%s MAC[%d]=%pM\n", dev->info->name,
+				   adapter->count, adapter->dvb_adapter.proposed_mac);
+		}
 
 		break;
 	default:
