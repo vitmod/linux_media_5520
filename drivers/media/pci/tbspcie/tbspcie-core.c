@@ -624,8 +624,7 @@ static int tbsecp3_frontend_attach(struct tbs_adapter *adapter)
 		}
 		adapter->i2c_client_tuner = client_tuner;
 
-		if (!tbsecp3_mac(&dev->i2c->i2c_adap,0,mac)) {
-			mac[5] += adapter->count;
+		if (!tbsecp3_mac(&dev->i2c->i2c_adap,adapter->count,mac)) {
 			memcpy(adapter->dvb_adapter.proposed_mac, mac, 6);
 			dev_notice(&dev->pci_dev->dev, "%s MAC[%d]=%pM\n", dev->info->name,
 				   adapter->count, adapter->dvb_adapter.proposed_mac);
@@ -657,8 +656,7 @@ static int tbsecp3_frontend_attach(struct tbs_adapter *adapter)
 		if (cfg->voltage_onoff_lvl != TBSECP3_GPIODEF_NONE)
 			tbsecp3_gpio_set_pin(dev, cfg->voltage_onoff_pin, cfg->voltage_onoff_lvl == TBSECP3_GPIODEF_LOW ? 1 : 0);
 		
-		if (!tbsecp3_mac(&dev->i2c->i2c_adap,0,mac)) {
-			mac[5] += adapter->count;
+		if (!tbsecp3_mac(&dev->i2c->i2c_adap,adapter->count,mac)) {
 			memcpy(adapter->dvb_adapter.proposed_mac, mac, 6);
 			dev_notice(&dev->pci_dev->dev, "%s MAC[%d]=%pM\n", dev->info->name,
 				   adapter->count, adapter->dvb_adapter.proposed_mac);
@@ -710,8 +708,7 @@ static int tbsecp3_frontend_attach(struct tbs_adapter *adapter)
 		}
 		adapter->i2c_client_tuner = client_tuner;
 #endif
-		if (!tbsecp3_mac(&dev->i2c->i2c_adap,0,mac)) {
-			mac[5] += adapter->count;
+		if (!tbsecp3_mac(&dev->i2c->i2c_adap,adapter->count,mac)) {
 			memcpy(adapter->dvb_adapter.proposed_mac, mac, 6);
 			dev_notice(&dev->pci_dev->dev, "%s MAC[%d]=%pM\n", dev->info->name,
 				   adapter->count, adapter->dvb_adapter.proposed_mac);
